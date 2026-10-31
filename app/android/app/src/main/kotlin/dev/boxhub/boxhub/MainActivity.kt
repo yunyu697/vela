@@ -21,7 +21,7 @@ import io.flutter.plugin.common.MethodChannel
  *                                 → {status: starting | permission_required}
  *                                   最终结果经 onCoreEvent 回调
  *   - stopCore {core}             → {status: stopped}
- *   - checkNotifications          → {granted: Boolean}（Android 13+ 通知权限）
+ *   - checkNotifications          → Boolean（Android 13+ 通知权限是否已授予）
  *   - requestNotifications        → 拉起系统通知权限对话框
  *   - onCoreEvent（原生 → Dart）  {ok, error}
  */
@@ -60,9 +60,7 @@ class MainActivity : FlutterActivity() {
                     )
                     "startCore" -> handleStartCore(call.arguments() ?: emptyMap(), result)
                     "stopCore" -> handleStopCore(call.arguments() ?: emptyMap(), result)
-                    "checkNotifications" -> result.success(
-                        mapOf("granted" to notificationsGranted())
-                    )
+                    "checkNotifications" -> result.success(notificationsGranted())
                     "requestNotifications" -> {
                         if (Build.VERSION.SDK_INT >= 33 &&
                             !notificationsGranted()
@@ -105,8 +103,15 @@ class MainActivity : FlutterActivity() {
             putExtra(BoxHubVpnService.EXTRA_SECRET, args["secret"] as? String)
             putExtra(BoxHubVpnService.EXTRA_TUN, args["tun"] == true)
         }
-        // 核心逻辑在服务内部线程执行，结果经 eventChannel.onCoreEvent 回传
-        startService(intent)
+        // 核心逻辑在服务内部线程执行，结果经 eventChannel.onCoreEvent 回传。
+        // 用 startForegroundService：授权对话框回来后应用可能已不在前台，
+        // 普通 startService 在后台会被系统拒绝（IllegalStateException）。
+        // 服务在 onStartCommand 里立刻 startForeground，满足 5s 约束。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
     private fun handleStopCore(args: Map<String, Any?>, result: MethodChannel.Result) {
