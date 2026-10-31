@@ -14,6 +14,7 @@ dependencies:
   yaml: ^3.1.4
   # 桌面端 Go 桥接 FFI（移动端走 gomobile 平台通道，不用本依赖）
   ffi: ^2.1.4
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

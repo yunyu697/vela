@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 import '../ir/profile.dart';
 import 'kv_store.dart';
 import 'profile_store.dart';
+import 'secure_vault.dart';
 
 /// 单个配置的管理元信息。
 ///
@@ -165,8 +166,18 @@ class ProfileRepository extends ChangeNotifier {
     if (_ready) return;
     final kv = await KvStore.open('${await AppPaths.supportDir()}/profiles.json');
     _kv = kv;
-    _store = ProfileStore(kv);
-    _profiles = _store!.listProfiles();
+    // 敏感数据（订阅地址/节点凭据）走加密保险库；vault 打开失败时
+    // 降级为明文存储（可用性优先，不阻塞主流程）。
+    SecureVault? vault;
+    try {
+      vault = await SecureVault.open();
+    } catch (_) {
+      vault = null;
+    }
+    final store = ProfileStore(kv, vault: vault);
+    _store = store;
+    await store.load();
+    _profiles = store.listProfiles();
     _metas = _readMetas(kv);
     _ready = true;
     notifyListeners();

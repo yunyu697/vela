@@ -17,3 +17,10 @@ mobile-libs/
 *.dll
 *.so
 app/android/app/libs/
+
+# 加密备份仅存本机
+backups/
+
+# 黄金图失败时的临时 diff 产物
+test/failures/
+app/test/failures/

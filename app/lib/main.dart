@@ -10,6 +10,9 @@ import 'ui/vela_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 移动端支持横竖屏自由旋转（桌面端此调用无副作用）：
+  // 布局按 AdaptiveScope 的内容区尺寸自适应，无需锁方向。
+  await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   // Android：从 Kotlin 侧取应用私有目录（HOME 环境变量不可靠）
   if (Platform.isAndroid) {
     try {

@@ -36,6 +36,15 @@ class KvStore {
     await _file.parent.create(recursive: true);
     await _file.writeAsString(jsonEncode(_data), flush: true);
   }
+
+  /// 删除一个键（不存在时为空操作）。
+  ///
+  /// 用于敏感数据迁移：Profile/补丁迁入 [SecureVault] 后从明文文件清除。
+  Future<void> remove(String key) async {
+    if (!_data.containsKey(key)) return;
+    _data.remove(key);
+    await _file.writeAsString(jsonEncode(_data), flush: true);
+  }
 }
 
 /// 应用数据目录（配置文件、unix socket、KV 存放处）。

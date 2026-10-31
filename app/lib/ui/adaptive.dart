@@ -196,6 +196,7 @@ class AdaptiveScaffold extends StatelessWidget {
               children: [
                 if (!scope.size.isCompact)
                   _SideNavigation(
+                    key: const ValueKey('vela-side-nav'),
                     destinations: destinations,
                     selectedIndex: selectedIndex,
                     onSelected: onDestinationSelected,
@@ -218,6 +219,7 @@ class AdaptiveScaffold extends StatelessWidget {
       ),
       bottomNavigationBar: scope.size.isCompact && destinations.length > 1
           ? _BottomNavigation(
+              key: const ValueKey('vela-bottom-nav'),
               destinations: destinations,
               selectedIndex: selectedIndex,
               onSelected: onDestinationSelected,
@@ -246,6 +248,7 @@ class AdaptiveDestination {
 /// 侧边导航（宽屏 / 中屏）。
 class _SideNavigation extends StatelessWidget {
   const _SideNavigation({
+    super.key,
     required this.destinations,
     required this.selectedIndex,
     required this.onSelected,
@@ -393,6 +396,7 @@ class _NavItem extends StatelessWidget {
 /// 底部导航（窄屏）。
 class _BottomNavigation extends StatelessWidget {
   const _BottomNavigation({
+    super.key,
     required this.destinations,
     required this.selectedIndex,
     required this.onSelected,

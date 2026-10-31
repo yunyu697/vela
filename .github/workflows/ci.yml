@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Analyze + Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      # 黄金图（layout_test）依赖生成机字体环境，CI 上必然失配，单独本机跑。
+      # e2e_desktop_test 在缺 dylib 的环境自动跳过。
+      - name: Tests
+        run: >
+          flutter test
+          test/core_test.dart
+          test/subscribe_test.dart
+          test/e2e_desktop_test.dart
+          test/window_size_test.dart
+          test/wizard_naming_scenario_test.dart
+          test/command_palette_test.dart
+          test/profile_test.dart
+          test/perf_test.dart
+          test/secure_vault_test.dart
+          test/system_proxy_test.dart
+          test/mobile_orientation_test.dart
+          test/repro_user_profile_test.dart
+
+  build-macos:
+    name: macOS Release Build
+    runs-on: macos-14
+    needs: test
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: Build
+        run: flutter build macos --release
+
+      - name: Package
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --keepParent Vela.app Vela-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-macOS
+          path: app/build/macos/Build/Products/Release/Vela-macOS.zip
+          retention-days: 14

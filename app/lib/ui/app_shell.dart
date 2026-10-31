@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../core/ir/profile.dart';
+import '../core/platform/desktop_integrations.dart';
 import '../core/storage/profile_repository.dart';
 import '../features/run/core_manager.dart';
 import '../features/run/core_quick_actions.dart';
@@ -63,6 +64,9 @@ class _VelaShellState extends State<VelaShell> {
     bus.onGoTab = _select;
     bus.onOpenPalette = _openPalette;
     bus.onToggleCore = _toggleCore;
+    // 桌面端系统集成（托盘 / 系统代理 / 开机自启）。fire-and-forget：
+    // 初始化失败不影响主界面。
+    DesktopIntegrations.instance.init().catchError((_) {});
   }
 
   @override

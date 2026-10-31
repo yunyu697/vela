@@ -63,9 +63,11 @@ Future<void> _pumpAt(
 ///  - `pump(带 duration)` —— 推进 fake 时钟，顺带 flush 微任务队列，
 ///    驱动 await 链往下走一步（建目录 → exists → read → setState）。
 Future<void> _settleAsyncIO(WidgetTester tester) async {
-  for (var i = 0; i < 10; i++) {
+  // 轮数按最坏链路估算：仓库 init 现在含 vault 打开 + 加密读写 +
+  // chmod 子进程（每轮只推进一个 await 台阶，子进程一次就要占掉数轮）。
+  for (var i = 0; i < 40; i++) {
     await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 15));
     });
     await tester.pump(const Duration(milliseconds: 1));
   }

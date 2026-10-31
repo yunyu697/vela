@@ -1,12 +1,17 @@
 /// Profile 持久化 + Override 补丁层。
 ///
-/// 设计要点：订阅原始数据（base）与用户修改（UserPatch）分开存储。
-/// 订阅更新 = 仅替换 base 后重新 applyPatch，用户定制永不丢失。
+/// 设计要点：
+///  - 订阅原始数据（base）与用户修改（UserPatch）分开存储。订阅更新 =
+///    仅替换 base 后重新 applyPatch，用户定制永不丢失。
+///  - 传入 [SecureVault] 时，Profile 与补丁（含订阅地址、节点凭据等
+///    敏感信息）加密存储，并在首次运行时自动从 KvStore 明文迁移；
+///    不传 vault 时保持旧的明文 KvStore 行为（布局测试等场景）。
 library;
 
 import 'dart:convert';
 
 import 'kv_store.dart';
+import 'secure_vault.dart';
 
 import '../ir/profile.dart';
 
@@ -90,18 +95,58 @@ class UserPatch {
       );
 }
 
-/// M1 用 KvStore（JSON 文件）存数据；M2 切到 sqlite + 加密（移动端
-/// Keychain/Keystore 保护订阅凭据）。
 class ProfileStore {
-  ProfileStore(this._prefs);
+  ProfileStore(this._prefs, {SecureVault? vault}) : _vault = vault;
 
   static const _keyProfiles = 'boxhub.profiles';
   static const _keyPatches = 'boxhub.patches';
 
   final KvStore _prefs;
+  final SecureVault? _vault;
 
   final Map<String, Profile> _baseCache = {};
   final Map<String, UserPatch> _patchCache = {};
+
+  /// 加载全部数据进缓存（repository.init 时调用一次）。
+  ///
+  /// 首次启用加密存储时执行**明文迁移**：把 KvStore 里的旧明文
+  /// Profile/补丁写入 vault 后，从明文文件中删除。
+  Future<void> load() async {
+    await _loadBlob(_keyProfiles, (raw) {
+      final parsed = (jsonDecode(raw) as List<Object?>)
+          .map((e) => Profile.fromJson(e as Map<Object?, Object?>))
+          .toList();
+      _baseCache
+        ..clear()
+        ..addEntries(parsed.map((p) => MapEntry(p.id, p)));
+    });
+    await _loadBlob(_keyPatches, (raw) {
+      final map = (jsonDecode(raw) as Map<Object?, Object?>)
+          .cast<String, Object?>();
+      _patchCache
+        ..clear()
+        ..addEntries(map.entries.map((e) =>
+            MapEntry(e.key, UserPatch.fromJson(e.value as Map<Object?, Object?>))));
+    });
+  }
+
+  /// 读一个 blob：vault 优先；vault 未命中时尝试明文 KvStore 并迁移。
+  Future<String?> _loadBlob(
+      String key, void Function(String raw) intoCache) async {
+    var raw = await _vault?.readString(key);
+    if (raw == null) {
+      final legacy = _prefs.getString(key);
+      if (legacy != null) {
+        if (_vault != null) {
+          await _vault.setString(key, legacy);
+          await _prefs.remove(key); // 明文清除，只留密文
+        }
+        raw = legacy;
+      }
+    }
+    if (raw != null) intoCache(raw);
+    return raw;
+  }
 
   /// 全部已保存的 Profile（用于「运行」页选择）。
   List<Profile> listProfiles() => _readAllBase();
@@ -113,9 +158,7 @@ class ProfileStore {
     _baseCache
       ..clear()
       ..addEntries(all.map((p) => MapEntry(p.id, p)));
-    await _prefs.setString(_keyProfiles, jsonEncode(
-      all.map((p) => p.toJson()).toList(),
-    ));
+    await _writeBlob(_keyProfiles, jsonEncode(all.map((p) => p.toJson()).toList()));
   }
 
   /// 删除一个 Profile 及其补丁。
@@ -125,27 +168,34 @@ class ProfileStore {
       ..clear()
       ..addEntries(all.map((p) => MapEntry(p.id, p)));
     _patchCache.remove(profileId);
-    await _prefs.setString(_keyProfiles, jsonEncode(
-      all.map((p) => p.toJson()).toList(),
-    ));
+    await _writeBlob(_keyProfiles, jsonEncode(all.map((p) => p.toJson()).toList()));
   }
 
   Future<void> savePatch(String profileId, UserPatch patch) async {
     _patchCache[profileId] = patch;
-    await _prefs.setString(_keyPatches, jsonEncode(
-      _patchCache.map((k, v) => MapEntry(k, v.toJson())),
-    ));
+    await _writeBlob(_keyPatches,
+        jsonEncode(_patchCache.map((k, v) => MapEntry(k, v.toJson()))));
   }
 
-  List<Profile> _allBase() {
-    if (_baseCache.isNotEmpty) return _baseCache.values.toList();
-    final raw = _prefs.getString(_keyProfiles);
-    if (raw == null) return const [];
-    return _readAllBase();
+  /// blob 写入路由：有 vault 走密文，否则明文 KvStore。
+  Future<void> _writeBlob(String key, String value) async {
+    final vault = _vault;
+    if (vault != null) {
+      await vault.setString(key, value);
+      // 兜底清除可能存在的旧明文（load() 已迁，防御构造顺序差异）
+      await _prefs.remove(key);
+    } else {
+      await _prefs.setString(key, value);
+    }
   }
 
+  List<Profile> _allBase() => _readAllBase();
+
+  /// 同步读缓存。带 vault 时数据只能经 [load] 异步进入缓存（init 保证）；
+  /// 无 vault 时保留旧的直读 KvStore 行为（布局测试直接构造的场景）。
   List<Profile> _readAllBase() {
     if (_baseCache.isNotEmpty) return _baseCache.values.toList();
+    if (_vault != null) return const [];
     final raw = _prefs.getString(_keyProfiles);
     if (raw == null) return const [];
     final parsed = (jsonDecode(raw) as List<Object?>)
@@ -169,6 +219,9 @@ class ProfileStore {
   }
 
   UserPatch? _readPatch(String profileId) {
+    final cached = _patchCache[profileId];
+    if (cached != null) return cached;
+    if (_vault != null) return null; // 补丁由 load() 异步载入缓存
     final raw = _prefs.getString(_keyPatches);
     if (raw == null) return null;
     final map = jsonDecode(raw) as Map<Object?, Object?>;
