@@ -1,0 +1,19 @@
+.DS_Store
+*.iml
+.dart_tool/
+.packages
+build/
+.flutter-plugins*
+*.aar
+*.xcframework
+dist/
+
+# Vela: 构建产物与敏感文件不入库
+keystores/
+desktop-libs/
+mobile-libs/
+*.jks
+*.dylib
+*.dll
+*.so
+app/android/app/libs/
