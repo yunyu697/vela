@@ -326,7 +326,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# 把全部桥接 dylib（mihomo / sing-box）打进 app bundle\n# 由 cores/mihomo-bridge/build_desktop.sh 预先构建。\nset -u\nARCH=\"$(uname -m)\"\nLIB_DIR=\"${PROJECT_DIR}/../../desktop-libs/darwin-${ARCH}\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nFOUND=0\nfor LIB_SRC in \"$LIB_DIR\"/libboxhub_*.dylib; do\n  [ -f \"$LIB_SRC\" ] || continue\n  FOUND=1\n  mkdir -p \"$DEST_DIR\"\n  cp -f \"$LIB_SRC\" \"$DEST_DIR/\"\n  codesign --force --sign - \"$DEST_DIR/$(basename \"$LIB_SRC\")\" || true\n  echo \"embedded bridge: $DEST_DIR/$(basename \"$LIB_SRC\")\"\ndone\nif [ \"$FOUND\" -eq 0 ]; then\n  echo \"warning: 未找到任何桥接库（$LIB_DIR）—— 应用仍可构建，内核功能将不可用\"\nfi\n";
+			shellScript = "# 把全部桥接 dylib（mihomo / sing-box）打进 app bundle\n# 由 cores/mihomo-bridge/build_desktop.sh 预先构建。\nset -u\nARCH=\"$(uname -m)\"\nLIB_DIR=\"${PROJECT_DIR}/../../desktop-libs/darwin-${ARCH}\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nFOUND=0\nfor LIB_SRC in \"$LIB_DIR\"/libboxhub_*.dylib; do\n  [ -f \"$LIB_SRC\" ] || continue\n  FOUND=1\n  mkdir -p \"$DEST_DIR\"\n  cp -f \"$LIB_SRC\" \"$DEST_DIR/\"\n  codesign --force --sign - \"$DEST_DIR/$(basename \"$LIB_SRC\")\" || true\n  echo \"embedded bridge: $DEST_DIR/$(basename \"$LIB_SRC\")\"\ndone\nif [ \"$FOUND\" -eq 0 ]; then\n  echo \"warning: bridge libs not found (${LIB_DIR}) - app builds fine, core features unavailable\"\nfi\n";
 		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
