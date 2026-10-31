@@ -24,3 +24,6 @@ backups/
 # 黄金图失败时的临时 diff 产物
 test/failures/
 app/test/failures/
+
+# 本地构建产物（DMG/APK/MSI 等，由 CI 产出并发布）
+artifacts/

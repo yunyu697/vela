@@ -37,10 +37,11 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /// Android 13+ 前台服务通知需要运行时授权；低版本恒为 true。
+    /// 直接用 Activity.checkSelfPermission（API 23+），避免引入 androidx.core 依赖。
     private fun notificationsGranted(): Boolean =
         Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
+            checkSelfPermission(
+                Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

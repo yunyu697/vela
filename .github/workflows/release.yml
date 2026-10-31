@@ -1,0 +1,334 @@
+name: Release
+
+# 发布多平台安装包：
+#   macOS  -> DMG
+#   Windows-> ZIP / NSIS EXE / WiX MSI
+#   Linux  -> DEB / AppImage / RPM
+#   Android-> APK / AAB（与本地相同 keystore 签名，保持一致）
+# 触发：推送 v* 标签，或手动 workflow_dispatch。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release 版本号（如 0.1.0）'
+        required: true
+        default: '0.1.0'
+      prerelease:
+        description: '是否标记为预发布'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.8
+  APP_NAME: Vela
+  GOPROXY: https://proxy.golang.org,direct
+  GOFLAGS: -mod=mod
+  CGO_ENABLED: '1'
+
+jobs:
+  # ---------------- macOS ----------------
+  macos:
+    name: macOS DMG
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          echo "VERSION=${V#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build desktop bridge (mihomo + sing-box)
+        working-directory: .
+        run: bash cores/mihomo-bridge/build_desktop.sh
+
+      - name: Flutter build macos
+        run: flutter build macos --release
+
+      - name: Make DMG
+        working-directory: .
+        run: |
+          mkdir -p artifacts
+          bash tools/packaging/make_dmg.sh \
+            "app/build/macos/Build/Products/Release/${{ env.APP_NAME }}.app" \
+            "artifacts/${{ env.APP_NAME }}-${{ env.VERSION }}.dmg" "${{ env.APP_NAME }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-macos
+          path: artifacts/*.dmg
+          retention-days: 14
+
+  # ---------------- Windows ----------------
+  windows:
+    name: Windows ZIP/EXE/MSI
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          echo "VERSION=${V#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install MinGW (c-shared 需要 C 编译器)
+        run: choco install mingw -y
+        shell: pwsh
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build desktop bridge (mihomo + sing-box)
+        working-directory: .
+        shell: bash
+        run: |
+          export PATH="/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin:$PATH"
+          export CC=gcc
+          bash cores/mihomo-bridge/build_desktop.sh
+
+      - name: Flutter build windows
+        run: flutter build windows --release
+
+      - name: Embed bridge dll into Release
+        shell: pwsh
+        run: |
+          $dlls = Get-ChildItem "../../desktop-libs/windows-x64/*.dll"
+          foreach ($f in $dlls) { Copy-Item $f.FullName "build/windows/x64/runner/Release/" }
+
+      - name: Install NSIS + WiX
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          dotnet tool install --global wix --version 5.*
+          # 把 dotnet 全局工具目录加入后续步骤的 PATH
+          echo "PATH=$env:USERPROFILE\.dotnet\tools;$env:PATH" | `
+            Out-File -Append $env:GITHUB_ENV -Encoding utf8
+
+      - name: Package (ZIP/EXE/MSI)
+        shell: pwsh
+        working-directory: .
+        run: >
+          pwsh tools/packaging/windows/pack.ps1
+          -Version "${{ env.VERSION }}"
+          -ReleaseDir "app/build/windows/x64/runner/Release"
+          -OutDir "artifacts"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-windows
+          path: |
+            artifacts/*.zip
+            artifacts/*-setup.exe
+            artifacts/*.msi
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------- Linux ----------------
+  linux:
+    name: Linux DEB/AppImage/RPM
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          echo "VERSION=${V#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev gcc \
+            dpkg-dev alien rpm
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build desktop bridge (mihomo + sing-box)
+        working-directory: .
+        run: bash cores/mihomo-bridge/build_desktop.sh
+
+      - name: Flutter build linux
+        run: flutter build linux --release
+
+      - name: Embed bridge so into bundle
+        working-directory: .
+        run: |
+          cp desktop-libs/linux-x64/*.so app/build/linux/x64/release/bundle/ || true
+
+      - name: Package (DEB/AppImage/RPM)
+        working-directory: .
+        run: |
+          chmod +x tools/packaging/linux/pack.sh
+          bash tools/packaging/linux/pack.sh \
+            "${{ github.event.inputs.version || github.ref_name }}" \
+            "app/build/linux/x64/release/bundle" \
+            "artifacts" "${{ env.APP_NAME }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-linux
+          path: |
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.rpm
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------- Android ----------------
+  android:
+    name: Android APK/AAB
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          echo "VERSION=${V#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platforms;android-35" "platforms;android-36" \
+            "build-tools;35.0.0" "build-tools;36.0.0" "platform-tools"
+        shell: bash
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Restore signing keystore (与本地一致)
+        working-directory: .
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p keystores
+          echo "$KEYSTORE_B64" | base64 -d > keystores/boxhub-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=../../../keystores/boxhub-release.jks
+          EOF
+
+      - name: Flutter build APK (arm64)
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Flutter build AppBundle
+        run: flutter build appbundle --release
+
+      - name: Collect artifacts
+        working-directory: .
+        run: |
+          mkdir -p artifacts
+          cp app/build/app/outputs/flutter-apk/app-release.apk \
+             artifacts/${{ env.APP_NAME }}-${{ env.VERSION }}-android-arm64.apk
+          cp app/build/app/outputs/bundle/release/app-release.aab \
+             artifacts/${{ env.APP_NAME }}-${{ env.VERSION }}-android.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-android
+          path: |
+            artifacts/*.apk
+            artifacts/*.aab
+          retention-days: 14
+
+  # ---------------- Publish ----------------
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [macos, windows, linux, android]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Resolve version & tag
+        run: |
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          V="${V#v}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "TAG=v$V" >> "$GITHUB_ENV"
+
+      - name: List assets
+        run: find release-assets -type f | sort
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Vela ${{ env.VERSION }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          files: release-assets/**/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
