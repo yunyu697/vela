@@ -67,7 +67,11 @@ abstract final class VelaColors {
   static const Color canvasLight = Color(0xFFF6F7FB);
 
   /// 背景微光色（深色模式）。
-  static const Color canvasDark = Color(0xFF0B0D14);
+  ///
+  /// 刻意不用近黑（#0B0D14 那种）：纯黑画布会让柔和阴影完全失效，
+  /// 卡片与背景之间的层次只能靠描边硬撑，观感像「贴纸堆在黑板上」。
+  /// 这里抬到 #0D1017 并带一点蓝调，让 4% 级别的白色叠加仍然可见。
+  static const Color canvasDark = Color(0xFF0D1017);
 }
 
 /// 亮色模式配色。
@@ -110,6 +114,15 @@ ColorScheme _lightScheme() {
 }
 
 /// 深色模式配色。
+///
+/// 深色模式的设计约束与亮色不同，逐条说明取值理由：
+///  - 主色用 [VelaColors.indigoLight]（#818CF8）而非原色 #4F46E5：
+///    靛蓝原色在深底上对比度不足（对 #14161F 约 3.1:1），浅一档后
+///    约 6.4:1，作为按钮底色/图标色才清晰。
+///  - 表面层级按「越低越深」递增：#0B0D13 → #1A1D27 → #20242F →
+///    #282D39 → #323744，相邻层差约 5% 亮度，肉眼能分辨又不显脏。
+///  - 正文 #E9EBF3 对表面 #14161F 约 15:1，次要文字 #A8AFBF 约 8:1，
+///    都远超 WCAG AA。
 ColorScheme _darkScheme() {
   const scheme = ColorScheme(
     brightness: Brightness.dark,
@@ -129,20 +142,20 @@ ColorScheme _darkScheme() {
     onError: Color(0xFF4C0519),
     errorContainer: Color(0xFF9F1239),
     onErrorContainer: Color(0xFFFFE4E6),
-    surface: Color(0xFF12141C),
-    onSurface: Color(0xFFE8EAF2),
-    surfaceContainerLowest: Color(0xFF0B0D14),
-    surfaceContainerLow: Color(0xFF171A23),
-    surfaceContainer: Color(0xFF1C1F29),
-    surfaceContainerHigh: Color(0xFF242834),
-    surfaceContainerHighest: Color(0xFF2D323F),
-    onSurfaceVariant: Color(0xFFA6ADBD),
-    outline: Color(0xFF444B5C),
-    outlineVariant: Color(0xFF2B3040),
+    surface: Color(0xFF14161F),
+    onSurface: Color(0xFFE9EBF3),
+    surfaceContainerLowest: Color(0xFF0B0D13),
+    surfaceContainerLow: Color(0xFF1A1D27),
+    surfaceContainer: Color(0xFF20242F),
+    surfaceContainerHigh: Color(0xFF282D39),
+    surfaceContainerHighest: Color(0xFF323744),
+    onSurfaceVariant: Color(0xFFA8AFBF),
+    outline: Color(0xFF4A5265),
+    outlineVariant: Color(0xFF2E3444),
     shadow: Color(0x66000000),
     scrim: Color(0x99000000),
-    inverseSurface: Color(0xFFE8EAF2),
-    onInverseSurface: Color(0xFF16181F),
+    inverseSurface: Color(0xFFE9EBF3),
+    onInverseSurface: Color(0xFF14161F),
     inversePrimary: VelaColors.indigo,
   );
   return scheme;
@@ -301,8 +314,18 @@ ThemeData buildVelaTheme({
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ),
+        // 前景色必须显式给 onPrimary：
+        // ButtonStyle.textStyle 里的 color **会覆盖** foregroundColor 的
+        // 解析结果，而 textTheme.labelLarge 经 apply(bodyColor:) 带上了
+        // onSurface。结果就是「深色模式下浅色底 + 浅色字」的低对比按钮
+        // （浅色模式下则是深字压深底，同样不对）。图标同理由此继承。
+        foregroundColor: WidgetStatePropertyAll(scheme.onPrimary),
+        iconColor: WidgetStatePropertyAll(scheme.onPrimary),
         textStyle: WidgetStatePropertyAll(
-          textTheme.labelLarge?.copyWith(fontSize: 14.5),
+          textTheme.labelLarge?.copyWith(
+            fontSize: 14.5,
+            color: scheme.onPrimary,
+          ),
         ),
         minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
       ),

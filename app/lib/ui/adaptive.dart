@@ -167,6 +167,7 @@ class AdaptiveScaffold extends StatelessWidget {
     this.rail,
     this.floatingActionButton,
     this.background,
+    this.footer,
   });
 
   final Widget body;
@@ -180,6 +181,12 @@ class AdaptiveScaffold extends StatelessWidget {
   final Widget? rail;
   final Widget? floatingActionButton;
   final Widget? background;
+
+  /// 侧栏底部常驻区域（如主题切换、设置入口）。
+  ///
+  /// 只在非紧凑布局（有侧栏）时渲染：紧凑布局的底部导航已被
+  /// 目的地占满，额外的全局入口由调用方自行安排。
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +209,7 @@ class AdaptiveScaffold extends StatelessWidget {
                     onSelected: onDestinationSelected,
                     extended: scope.size == WindowSize.wide ||
                         scope.size == WindowSize.expanded,
+                    footer: footer,
                   ),
                 Expanded(
                   child: Row(
@@ -253,12 +261,14 @@ class _SideNavigation extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     required this.extended,
+    this.footer,
   });
 
   final List<AdaptiveDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int>? onSelected;
   final bool extended;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +328,16 @@ class _SideNavigation extends StatelessWidget {
               ),
             ),
           ),
+          if (footer != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Insets.md,
+                Insets.sm,
+                Insets.md,
+                Insets.md,
+              ),
+              child: footer,
+            ),
           const SizedBox(height: Insets.lg),
         ],
       ),
@@ -653,7 +673,7 @@ class VelaBackdrop extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? const [Color(0xFF12141C), Color(0xFF0B0D14)]
+                ? const [Color(0xFF161924), Color(0xFF0D1017)]
                 : const [Color(0xFFF7F8FC), Color(0xFFEFF1F8)],
           ),
         ),

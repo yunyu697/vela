@@ -16,6 +16,7 @@ import 'clash_api_client.dart';
 import 'core_adapter.dart';
 import 'core_bridge.dart';
 import 'ffi_bridge.dart' show BridgeCore;
+import 'geo_data.dart';
 
 class MihomoAdapter extends CoreAdapter {
   final _statusCtrl = StreamController<CoreStatus>.broadcast();
@@ -66,6 +67,11 @@ class MihomoAdapter extends CoreAdapter {
     if (await socketFile.exists()) {
       await socketFile.delete();
     }
+
+    // TUN 模式下必须在建立 TUN 之前把 GeoIP 数据库准备好：TUN 一起来，
+    // 系统 DNS 就指向了还没启动的内核，内核启动期的下载会解析失败。
+    // 非 TUN 模式同样受益（省掉一次启动期联网）。
+    await GeoData.ensureMihomoGeoIp(request.workDir);
 
     try {
       await bridge.start(CoreBridgeRequest(

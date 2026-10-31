@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/cores/core_adapter.dart';
 import '../../core/ir/profile.dart';
+import '../../core/ir/rule_set_registry.dart';
 import '../../core/storage/profile_repository.dart';
 import '../run/core_manager.dart';
 import '../run/core_quick_actions.dart';
 import '../wizard/wizard_page.dart';
 import '../../ui/adaptive.dart';
+import '../../ui/theme_toggle.dart';
 import '../../ui/tokens.dart';
 import '../../ui/vela_theme.dart';
 import '../../ui/widgets.dart';
@@ -19,10 +21,14 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.onOpenProfiles,
     required this.onOpenRun,
+    this.showCompactThemeToggle = false,
   });
 
   final VoidCallback onOpenProfiles;
   final VoidCallback onOpenRun;
+
+  /// 紧凑布局下没有侧栏，主题切换入口放在 Hero 右上角。
+  final bool showCompactThemeToggle;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -150,35 +156,44 @@ class _HomePageState extends State<HomePage> {
 
   Widget _heroBrand(BuildContext context, {CrossAxisAlignment? crossAxisAlignment}) {
     final theme = Theme.of(context);
+    final brandRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+          ),
+          child: const Center(
+            child: VelaLogoMark(size: 26, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: Insets.md),
+        Text(
+          'Vela',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+          ),
+        ),
+      ],
+    );
     return Column(
       crossAxisAlignment: crossAxisAlignment ?? CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(Radii.md),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-              ),
-              child: const Center(
-                child: VelaLogoMark(size: 26, color: Colors.white),
-              ),
-            ),
-            const SizedBox(width: Insets.md),
-            Text(
-              'Vela',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.6,
-              ),
-            ),
-          ],
-        ),
+        if (widget.showCompactThemeToggle)
+          Row(
+            children: [
+              Expanded(child: brandRow),
+              const VelaThemeToggle(extended: false, onGradient: true),
+            ],
+          )
+        else
+          brandRow,
         const SizedBox(height: Insets.lg),
         Text(
           '一站式双内核代理客户端',
@@ -417,7 +432,8 @@ class _HomePageState extends State<HomePage> {
       ),
       (
         Icons.rule_rounded,
-        '12 组内置规则集',
+        // 数量直接取注册表长度：之前写死 12，规则集扩到 21 后文案就过期了
+        '${RuleSetRegistry.builtin.length} 组内置规则集',
         '国内直连、去广告、流媒体、AI、Telegram…一键勾选。',
         VelaColors.violet,
       ),

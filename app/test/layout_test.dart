@@ -254,11 +254,11 @@ void main() {
     }
   });
 
-  Widget app(Widget home) {
+  Widget app(Widget home, {Brightness brightness = Brightness.light}) {
     // 主题整体套用真实字体：按钮 / 输入框等组件主题里自带 textStyle，
     // 只覆盖 textTheme 会让它们回落到测试默认字体（渲染成黑块）。
     final base = buildVelaTheme(
-      brightness: Brightness.light,
+      brightness: brightness,
       fontFamily: _testFontFamily,
     );
     return MaterialApp(
@@ -270,13 +270,15 @@ void main() {
 
   /// 单页宿主：补上外壳提供的自适应上下文与渐变背景，
   /// 让独立页面的黄金图与真实界面观感一致。
-  Widget pageApp(Widget child) => app(
+  Widget pageApp(Widget child, {Brightness brightness = Brightness.light}) =>
+      app(
         AdaptiveBuilder(
           builder: (context, scope) => Scaffold(
             backgroundColor: Colors.transparent,
             body: VelaBackdrop(child: child),
           ),
         ),
+        brightness: brightness,
       );
 
   group('外壳与概览页', () {
@@ -475,6 +477,121 @@ void main() {
       await expectLater(
         find.byType(RunPage),
         matchesGoldenFile('goldens/run_empty_desktop.png'),
+      );
+    });
+  });
+
+  // ------------------------------------------------------------ 暗色模式
+  //
+  // 暗色曾经是半成品（近黑画布 + 未打磨的对比度），当时把 ThemeMode
+  // 硬编码成 light 规避「UI 变黑」。现在暗色是用户可配置项，必须有
+  // 自己的守卫：布局断言防溢出，黄金图防对比度/配色回退。
+  group('暗色模式', () {
+    const darkSizes = ['phone_portrait', 'laptop', 'min_safe'];
+
+    for (final name in darkSizes) {
+      final size = _sizes[name]!;
+
+      testWidgets('概览（暗色）@ $name', (tester) async {
+        await _pumpAt(
+          tester,
+          app(const VelaShell(), brightness: Brightness.dark),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('配置页（暗色）@ $name', (tester) async {
+        await _pumpAt(
+          tester,
+          pageApp(ProfilesPage(onOpenRun: () {}), brightness: Brightness.dark),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('运行页（暗色）@ $name', (tester) async {
+        await _pumpAt(
+          tester,
+          pageApp(const RunPage(), brightness: Brightness.dark),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('向导（暗色）@ $name', (tester) async {
+        await _pumpAt(
+          tester,
+          pageApp(
+            const WizardPage(initialProfileName: '我的配置'),
+            brightness: Brightness.dark,
+          ),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('暗色黄金图 概览 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        app(const VelaShell(), brightness: Brightness.dark),
+        const Size(1280, 800),
+      );
+      await expectLater(
+        find.byType(VelaShell),
+        matchesGoldenFile('goldens/dark_home_laptop.png'),
+      );
+    });
+
+    testWidgets('暗色黄金图 概览 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        app(const VelaShell(), brightness: Brightness.dark),
+        const Size(390, 844),
+      );
+      await expectLater(
+        find.byType(VelaShell),
+        matchesGoldenFile('goldens/dark_home_phone.png'),
+      );
+    });
+
+    testWidgets('暗色黄金图 配置页 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(ProfilesPage(onOpenRun: () {}), brightness: Brightness.dark),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(ProfilesPage),
+        matchesGoldenFile('goldens/dark_profiles_desktop.png'),
+      );
+    });
+
+    testWidgets('暗色黄金图 运行页 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(const RunPage(), brightness: Brightness.dark),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/dark_run_desktop.png'),
+      );
+    });
+
+    testWidgets('暗色黄金图 向导 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(
+          const WizardPage(initialProfileName: '我的配置'),
+          brightness: Brightness.dark,
+        ),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/dark_wizard_desktop.png'),
       );
     });
   });

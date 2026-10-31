@@ -12,11 +12,13 @@ import 'package:flutter/material.dart';
 
 import '../core/ir/profile.dart';
 import '../core/platform/desktop_integrations.dart';
+import '../core/settings/app_settings.dart';
 import '../core/storage/profile_repository.dart';
 import '../features/run/core_manager.dart';
 import '../features/run/core_quick_actions.dart';
 import '../ui/adaptive.dart';
 import '../ui/command_palette.dart';
+import '../ui/theme_toggle.dart';
 import '../ui/tokens.dart';
 import '../ui/vela_shortcuts.dart';
 import '../features/home/home_page.dart';
@@ -64,6 +66,7 @@ class _VelaShellState extends State<VelaShell> {
     bus.onGoTab = _select;
     bus.onOpenPalette = _openPalette;
     bus.onToggleCore = _toggleCore;
+    bus.onToggleTheme = _cycleTheme;
     // 桌面端系统集成（托盘 / 系统代理 / 开机自启）。fire-and-forget：
     // 初始化失败不影响主界面。
     DesktopIntegrations.instance.init().catchError((_) {});
@@ -102,6 +105,13 @@ class _VelaShellState extends State<VelaShell> {
   /// ⌘R / 面板「启停」入口。
   Future<void> _toggleCore() =>
       _busy ? Future.value() : _runAction(CoreQuickActions.toggle);
+
+  /// ⌘⇧D / 侧栏按钮：循环切换主题模式。
+  Future<void> _cycleTheme() async {
+    final settings = AppSettings.instance;
+    await settings.cycleThemeMode();
+    _toast('主题：${settings.themeMode.label}');
+  }
 
   /// 面板里点某个配置：启动它（运行中先停止当前）。
   Future<void> _startProfile(Profile profile) => _busy
@@ -156,6 +166,20 @@ class _VelaShellState extends State<VelaShell> {
         onRun: _openWizard,
       ),
     ];
+
+    // 主题模式：三个模式各一条，当前模式在副标题里标注
+    final currentMode = AppSettings.instance.themeMode;
+    for (final mode in ThemeMode.values) {
+      commands.add(VelaCommand(
+        title: '主题：${mode.label}',
+        icon: mode.icon,
+        subtitle: mode == currentMode ? '当前模式' : '切换到${mode.label}',
+        onRun: () async {
+          await AppSettings.instance.setThemeMode(mode);
+          _toast('主题：${mode.label}');
+        },
+      ));
+    }
 
     // 内核控制
     if (manager.isActive) {
@@ -219,6 +243,10 @@ class _VelaShellState extends State<VelaShell> {
           selectedIndex: _index,
           onDestinationSelected: _select,
           background: const VelaBackdrop(),
+          footer: VelaThemeToggle(
+            extended: scope.size == WindowSize.wide ||
+                scope.size == WindowSize.expanded,
+          ),
           body: PageView(
             controller: _pageController,
             physics: const NeverScrollableScrollPhysics(),
@@ -226,6 +254,8 @@ class _VelaShellState extends State<VelaShell> {
               HomePage(
                 onOpenProfiles: () => _select(1),
                 onOpenRun: () => _select(2),
+                // 紧凑布局没有侧栏，主题入口改由概览页 Hero 承担
+                showCompactThemeToggle: scope.size.isCompact,
               ),
               ProfilesPage(onOpenRun: () => _select(2)),
               const RunPage(),

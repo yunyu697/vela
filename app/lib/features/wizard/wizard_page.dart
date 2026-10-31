@@ -513,9 +513,12 @@ class WizardPageState extends State<WizardPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SegmentedButton<SourceKind>(
+                // 标签保持短词：四个分段在手机宽度（390dp）下每段只剩
+                // 约 39dp 文字空间，「分享链接」会折成两行把分段撑高。
+                // 完整语义由下方输入框的 labelText 承担。
                 segments: const [
                   ButtonSegment(value: SourceKind.subscription, label: Text('订阅')),
-                  ButtonSegment(value: SourceKind.links, label: Text('分享链接')),
+                  ButtonSegment(value: SourceKind.links, label: Text('链接')),
                   ButtonSegment(value: SourceKind.manual, label: Text('手动')),
                   ButtonSegment(value: SourceKind.file, label: Text('文件')),
                 ],

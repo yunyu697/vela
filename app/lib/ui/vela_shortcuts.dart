@@ -8,6 +8,7 @@
 ///  - ⌘K / Ctrl+K：命令面板
 ///  - ⌘1 / ⌘2 / ⌘3：前往概览 / 配置 / 运行
 ///  - ⌘R：一键启停
+///  - ⌘⇧D：切换主题模式
 library;
 
 import 'package:flutter/foundation.dart';
@@ -22,11 +23,13 @@ class VelaShortcutBus {
   ValueChanged<int>? onGoTab;
   VoidCallback? onOpenPalette;
   VoidCallback? onToggleCore;
+  VoidCallback? onToggleTheme;
 
   void reset() {
     onGoTab = null;
     onOpenPalette = null;
     onToggleCore = null;
+    onToggleTheme = null;
   }
 }
 
@@ -44,6 +47,11 @@ class VelaShortcutLayer extends StatelessWidget {
       ? SingleActivator(key, meta: true)
       : SingleActivator(key, control: true);
 
+  /// 带 Shift 的修饰组合（⌘⇧ / Ctrl+Shift）。
+  static SingleActivator _modShift(LogicalKeyboardKey key) => _isMac
+      ? SingleActivator(key, meta: true, shift: true)
+      : SingleActivator(key, control: true, shift: true);
+
   @override
   Widget build(BuildContext context) {
     final bus = VelaShortcutBus.instance;
@@ -54,6 +62,7 @@ class VelaShortcutLayer extends StatelessWidget {
         _mod(LogicalKeyboardKey.digit2): const _GoTabIntent(1),
         _mod(LogicalKeyboardKey.digit3): const _GoTabIntent(2),
         _mod(LogicalKeyboardKey.keyR): const _ToggleCoreIntent(),
+        _modShift(LogicalKeyboardKey.keyD): const _ToggleThemeIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -75,6 +84,12 @@ class VelaShortcutLayer extends StatelessWidget {
               return null;
             },
           ),
+          _ToggleThemeIntent: CallbackAction<_ToggleThemeIntent>(
+            onInvoke: (_) {
+              bus.onToggleTheme?.call();
+              return null;
+            },
+          ),
         },
         child: child,
       ),
@@ -93,4 +108,8 @@ class _GoTabIntent extends Intent {
 
 class _ToggleCoreIntent extends Intent {
   const _ToggleCoreIntent();
+}
+
+class _ToggleThemeIntent extends Intent {
+  const _ToggleThemeIntent();
 }

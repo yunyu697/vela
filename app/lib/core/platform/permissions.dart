@@ -41,9 +41,19 @@ abstract final class VelaPermissions {
   static Future<bool> get notificationsGranted async {
     if (!Platform.isAndroid) return true;
     try {
-      final res = await _channel.invokeMethod<bool>('checkNotifications');
-      return res ?? true;
-    } on PlatformException {
+      // 通道返回类型不做强类型断言：Android 侧曾经返回
+      // `{granted: bool}`，而这里按 bool 解析，运行时抛
+      // `_Map<Object?, Object?> is not a subtype of bool?`——错误在
+      // 内核启动链路里冒出来，看起来像「启动失败」，实际只是权限查询。
+      // 现在两种形状都接受，避免原生/Dart 契约再次漂移时炸整条链路。
+      final res = await _channel.invokeMethod<Object?>('checkNotifications');
+      if (res is bool) return res;
+      if (res is Map) {
+        final granted = res['granted'];
+        if (granted is bool) return granted;
+      }
+      return true;
+    } catch (_) {
       return true; // 通道异常时按已授予处理，不阻塞主流程
     }
   }
