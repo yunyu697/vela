@@ -45,7 +45,9 @@ void main() {
     test('密钥文件权限 0600（unix）', () async {
       await SecureVault.open();
       if (!Platform.isWindows) {
-        final r = await Process.run('stat', ['-f', '%Lp', '${tmp.path}/vault.key']);
+        final r = Platform.isMacOS
+            ? await Process.run('stat', ['-f', '%Lp', '${tmp.path}/vault.key'])
+            : await Process.run('stat', ['-c', '%a', '${tmp.path}/vault.key']);
         expect(r.stdout.toString().trim(), '600');
       }
     });

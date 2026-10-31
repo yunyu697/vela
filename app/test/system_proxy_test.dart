@@ -1,4 +1,8 @@
 /// SystemProxy 命令构建测试（注入 fake 执行器，不真正改系统设置）。
+///
+/// 按宿主平台走各自分支：macOS 验证 networksetup 序列，
+/// Linux（CI ubuntu）验证 gsettings 序列。Windows 分支在 Windows
+/// 环境下由同样逻辑覆盖（此处仅结构上保持）。
 library;
 
 import 'dart:io';
@@ -7,13 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela/core/platform/system_proxy.dart';
 
 void main() {
-  // 本测试在 macOS 宿主上运行：Platform.isMacOS 为真，走 macOS 分支。
-  // Linux/Windows 分支在对应平台上由 CI 覆盖（当前 CI 为 ubuntu）。
-  test('enable：对每个网络服务设置 web/secure/socks 代理与绕过域', () async {
+  test('enable：命令序列与端口正确', () async {
     final calls = <(String, List<String>)>[];
     SystemProxy.instance.runCmd = (exe, args) async {
       calls.add((exe, args));
-      if (args.first == '-listallnetworkservices') {
+      if (Platform.isMacOS && args.first == '-listallnetworkservices') {
         return ProcessResult(0, 0, 'An asterisk (*) denotes '
             'that a network service is disabled.\nWi-Fi\n*Disabled VPN\n'
             'Ethernet\n', '');
@@ -23,25 +25,37 @@ void main() {
 
     await SystemProxy.instance.enable(port: 7890);
 
-    final services =
-        calls.where((c) => c.$2.contains('Wi-Fi')).map((c) => c.$2.first);
-    expect(services, containsAll(['-setwebproxy', '-setsecurewebproxy']));
-    // 禁用的服务（* 前缀）不应被触碰
-    final argsAll = calls.expand((c) => c.$2);
-    expect(argsAll.contains('*Disabled VPN'), isFalse);
-    // 端口正确
+    if (Platform.isMacOS) {
+      final services = calls
+          .where((c) => c.$2.contains('Wi-Fi'))
+          .map((c) => c.$2.first);
+      expect(services, containsAll(['-setwebproxy', '-setsecurewebproxy']));
+      // 禁用的服务（* 前缀）不应被触碰
+      expect(
+        calls.expand((c) => c.$2).contains('*Disabled VPN'),
+        isFalse,
+      );
+    } else if (Platform.isLinux) {
+      expect(calls.map((c) => c.$1), everyElement('gsettings'));
+      // gsettings 参数是 ['set', schema, key, value]
+      final keys = calls.map((c) => c.$2[2]).toSet();
+      expect(keys, containsAll(['mode', 'host', 'port']));
+    } else if (Platform.isWindows) {
+      expect(calls.map((c) => c.$1), everyElement('reg'));
+    }
     expect(
       calls.any((c) => c.$2.contains('7890')),
       isTrue,
+      reason: '任一平台的命令都应包含端口',
     );
     expect(SystemProxy.instance.isEnabled, isTrue);
   });
 
-  test('disable：对每个网络服务关闭三类代理', () async {
+  test('disable：关闭命令正确', () async {
     final calls = <(String, List<String>)>[];
     SystemProxy.instance.runCmd = (exe, args) async {
       calls.add((exe, args));
-      if (args.first == '-listallnetworkservices') {
+      if (Platform.isMacOS && args.first == '-listallnetworkservices') {
         return ProcessResult(0, 0, 'header\nWi-Fi\n', '');
       }
       return ProcessResult(0, 0, '', '');
@@ -49,28 +63,39 @@ void main() {
 
     await SystemProxy.instance.disable();
 
-    expect(
-      calls.any((c) => c.$2.first == '-setwebproxy' && c.$2.last == 'off'),
-      isTrue,
-    );
-    expect(
-      calls.any((c) => c.$2.first == '-setsocksfirewallproxy' && c.$2.last == 'off'),
-      isTrue,
-    );
+    if (Platform.isMacOS) {
+      expect(
+        calls.any((c) => c.$2.first == '-setwebproxy' && c.$2.last == 'off'),
+        isTrue,
+      );
+      expect(
+        calls.any((c) =>
+            c.$2.first == '-setsocksfirewallproxy' && c.$2.last == 'off'),
+        isTrue,
+      );
+    } else if (Platform.isLinux) {
+      // mode 设回 'none'
+      expect(
+        calls.any((c) =>
+            c.$2.length > 3 &&
+            c.$2[2] == 'mode' &&
+            c.$2[3].contains('none')),
+        isTrue,
+      );
+    }
     expect(SystemProxy.instance.isEnabled, isFalse);
   });
 
-  test('失败时 enable 返回 false 且状态不翻转', () async {
+  test('失败时 enable 状态不翻转', () async {
     SystemProxy.instance.runCmd = (exe, args) async {
-      if (args.first == '-listallnetworkservices') {
+      if (Platform.isMacOS && args.first == '-listallnetworkservices') {
         return ProcessResult(0, 0, 'header\nWi-Fi\n', '');
       }
       return ProcessResult(0, 1, '', 'mock failure');
     };
 
     await SystemProxy.instance.enable(port: 7890);
-    // macOS 下部分失败 → allOk false → 状态不翻转
-    // （v1 语义：仅全部成功才标记 enabled）
+    // v1 语义：仅全部成功才标记 enabled
     expect(SystemProxy.instance.isEnabled, isFalse);
   });
 }
