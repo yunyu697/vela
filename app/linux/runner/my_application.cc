@@ -75,7 +75,7 @@ static void my_application_activate(GApplication* application) {
   // GTK 的 GDK_HINT_MIN_SIZE 约束的是窗口表面。CSD 模式（GNOME / Wayland）
   // 下标题栏画在窗口表面内部，会占掉一部分内容高度，这里预留出来，
   // 保证**内容区**仍然不低于安全高度。
-  GtkGeometry geometry;
+  GdkGeometry geometry;
   geometry.min_width = kMinContentWidth;
   geometry.min_height = kMinContentHeight + (use_header_bar ? kHeaderBarAllowance : 0);
   geometry.max_width = G_MAXINT;
