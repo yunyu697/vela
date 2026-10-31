@@ -1,4 +1,4 @@
-/// 内核桥接统一抽象：桌面端 FFI / Android 平台通道。
+/// 内核桥接统一抽象：桌面端 FFI / 移动端平台通道。
 ///
 /// mihomo 与 sing-box 两个桥接库（桌面 c-shared dylib / Android gomobile
 /// aar）导出同构的控制面：start / stop / isRunning / lastError。
@@ -103,16 +103,23 @@ class FfiCoreBridge implements CoreBridge {
   String lastError() => _impl.lastError();
 }
 
-/// Android 实现：MethodChannel → MainActivity → VpnService → gomobile aar。
+/// 移动端实现：MethodChannel → 原生侧 → gomobile 绑定。
 ///
-/// TUN 模式时序：
+/// 两端通道契约一致（`dev.boxhub.boxhub/core`），差异只在内核跑在哪：
+///   - Android：MainActivity → BoxHubVpnService（前台服务）→ VpnService TUN
+///   - iOS：CoreBridgePlugin → NETunnelProviderManager → PacketTunnel 扩展
+///
+/// TUN 模式时序（以 Android 为例，iOS 同形）：
 ///   1. Dart 调 startCore（tun: true）
 ///   2. Kotlin 检查 VpnService.prepare → 未授权则弹系统对话框，
 ///      返回 {status: permission_required}
 ///   3. 用户同意 → 服务启动 → 建立 TUN → fd 交给 Go 内核
 ///   4. 结果经 onCoreEvent 推回，本类完成挂起的 Completer
-class AndroidCoreBridge implements CoreBridge {
-  AndroidCoreBridge(this.core) {
+///
+/// iOS 侧 startCore 会一直等到隧道进入 connected 才返回 {status: started}，
+/// 因此这里拿到的可能是 started 也可能仍是 starting，两条路径都成立。
+class MobileCoreBridge implements CoreBridge {
+  MobileCoreBridge(this.core) {
     _registerHandler();
   }
 
@@ -199,4 +206,6 @@ class AndroidCoreBridge implements CoreBridge {
 
 /// 按平台选择桥接实现。
 CoreBridge createCoreBridge(BridgeCore core) =>
-    Platform.isAndroid ? AndroidCoreBridge(core) : FfiCoreBridge(core);
+    (Platform.isAndroid || Platform.isIOS)
+        ? MobileCoreBridge(core)
+        : FfiCoreBridge(core);

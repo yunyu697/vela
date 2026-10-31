@@ -55,6 +55,13 @@ class AppPaths {
   /// Android 上 HOME 环境变量不可靠，必须由 Kotlin 侧提供真实路径）。
   static String? androidFilesDir;
 
+  /// iOS 的 App Group 容器路径（main.dart 初始化时写入）。
+  ///
+  /// 内核跑在 PacketTunnel 扩展进程里，与 App 的沙盒互不相通；只有
+  /// App Group 目录两边都能读写，所以控制器 socket 与内核工作目录
+  /// （geoip.metadb 等）必须放在这里。
+  static String? sharedGroupDir;
+
   /// 测试用：覆盖数据目录（null 表示按平台默认）。
   static String? overrideSupportDir;
 
@@ -102,9 +109,31 @@ class AppPaths {
       // 应用私有目录，路径短且不受沙盒限制
       return '$androidFilesDir/mihomo.sock';
     }
+    if (Platform.isIOS && sharedGroupDir != null) {
+      // iOS：内核在扩展进程里创建 socket，App 进程去连，只有 App Group
+      // 容器两边都可达。名字取最短（mh.sock），因为 unix socket 路径
+      // 有 104 字符硬上限，而 App Group 容器路径本身已约 83 字符。
+      return '$sharedGroupDir/mh.sock';
+    }
     final home = Platform.environment['HOME'] ?? Directory.systemTemp.path;
     final dir = Directory('$home/.boxhub')
       ..createSync(recursive: true);
     return '${dir.path}/mihomo.sock';
+  }
+
+  /// 内核工作目录（配置、geoip 库、缓存）。
+  ///
+  /// iOS 上内核进程的工作目录必须是 App Group 容器：App 负责把
+  /// geoip.metadb 下载到那里，扩展启动内核时才能直接读到（两个进程的
+  /// 沙盒互不可见，放各自目录里等于没准备）。
+  static Future<String> coreWorkDir(String profileDir) async {
+    if (Platform.isIOS && sharedGroupDir != null) {
+      final dir = '$sharedGroupDir/core';
+      await Directory(dir).create(recursive: true);
+      return dir;
+    }
+    final dir = '$profileDir/work';
+    await Directory(dir).create(recursive: true);
+    return dir;
   }
 }

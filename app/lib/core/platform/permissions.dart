@@ -2,17 +2,18 @@
 ///
 /// Vela 的内核运行方式因平台而异，权限要求也不同：
 ///
-/// | 平台      | 内核形态            | 需要的系统权限                                  |
-/// |-----------|---------------------|------------------------------------------------|
-/// | macOS     | 进程内 FFI 动态库   | 无（本机网络监听不需要额外授权）                |
-/// | Windows   | 进程内 FFI 动态库   | 无                                              |
-/// | Linux     | 进程内 FFI 动态库   | 无                                              |
-/// | Android   | 前台服务 + gomobile | VpnService 授权（TUN）、通知（13+ 前台服务通知）|
-/// | iOS       | 未集成              | ——（需 Network Extension，见 [coreSupported]） |
+/// | 平台      | 内核形态                     | 需要的系统权限                                  |
+/// |-----------|------------------------------|------------------------------------------------|
+/// | macOS     | 进程内 FFI 动态库            | 无（本机网络监听不需要额外授权）                |
+/// | Windows   | 进程内 FFI 动态库            | 无                                              |
+/// | Linux     | 进程内 FFI 动态库            | 无                                              |
+/// | Android   | 前台服务 + gomobile          | VpnService 授权（TUN）、通知（13+ 前台服务通知）|
+/// | iOS       | Network Extension + gomobile | VPN 配置授权（首次启动隧道时由系统弹窗）        |
 ///
 /// UI 层在启动内核前应先调 [canStartCore] 拦截，Android 上再按需
 /// 请求通知权限；VpnService 授权由 Kotlin 侧在 startCore 时拉起系统
-/// 对话框，无需 Dart 预检。
+/// 对话框，iOS 的 VPN 授权由 Network Extension 框架在首次
+/// startVPNTunnel 时弹出，都不需要 Dart 预检。
 library;
 
 import 'dart:io';
@@ -25,14 +26,20 @@ abstract final class VelaPermissions {
 
   /// 当前平台是否支持运行代理内核。
   ///
-  /// iOS 需要通过 Network Extension（Packet Tunnel Provider）集成内核，
-  /// 与 Android 的前台服务方案完全不同，尚未实现。桌面端无需系统授权。
-  static bool get coreSupported => !Platform.isIOS;
+  /// 四个桌面/移动平台均已接入：桌面走进程内 FFI，Android 走前台服务
+  /// + VpnService，iOS 走 Network Extension（Packet Tunnel Provider）。
+  static bool get coreSupported =>
+      Platform.isMacOS ||
+      Platform.isWindows ||
+      Platform.isLinux ||
+      Platform.isAndroid ||
+      Platform.isIOS;
 
-  /// iOS 上不可用时的用户可读说明。
+  /// 平台不受支持时的用户可读说明（当前所有目标平台均已接入，
+  /// 保留该入口以覆盖将来可能出现的未知平台）。
   static String get coreUnsupportedReason =>
-      'iOS 版需要通过系统 Network Extension 集成，当前版本暂不支持。'
-      '请使用 macOS / Windows / Linux / Android 版本。';
+      '当前平台暂不支持运行代理内核。'
+      '请使用 macOS / Windows / Linux / Android / iOS 版本。';
 
   /// 通知权限是否已授予（Android 13+ 为运行时权限；其它平台恒为 true）。
   ///

@@ -15,11 +15,14 @@ Future<void> main() async {
   // 布局按 AdaptiveScope 的内容区尺寸自适应，无需锁方向。
   await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   // Android：从 Kotlin 侧取应用私有目录（HOME 环境变量不可靠）
-  if (Platform.isAndroid) {
+  // iOS：额外取 App Group 容器（内核跑在 PacketTunnel 扩展里，两个进程
+  // 的沙盒不互通，只有 App Group 目录是共享的）
+  if (Platform.isAndroid || Platform.isIOS) {
     try {
       final res = await const MethodChannel('dev.boxhub.boxhub/core')
           .invokeMethod<Map<dynamic, dynamic>>('getPaths');
       AppPaths.androidFilesDir = res?['filesDir'] as String?;
+      AppPaths.sharedGroupDir = res?['groupDir'] as String?;
     } catch (_) {
       // 通道不可用时退回默认路径（不阻塞 UI 启动）
     }

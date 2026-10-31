@@ -109,7 +109,7 @@ class CoreManager extends ChangeNotifier {
       await adapter.start(CoreRunRequest(
         profile: profile,
         configFile: configFile.path,
-        workDir: '${dir.path}/work',
+        workDir: await AppPaths.coreWorkDir(dir.path),
         controllerSocketPath: controller,
         secret: secret,
       ));

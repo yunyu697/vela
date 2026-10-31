@@ -21,8 +21,9 @@
 - [x] sing-box 经 libbox 嵌入，IR 双编译器完整对齐
 - [x] 运行时切换内核（保持入站端口平滑重启）
 - [ ] 兼容性矩阵检查全量启用（不支持的节点自动标红剔除）
-- [ ] iOS（NetworkExtension，注意内存上限）/ macOS / Linux 适配
-- [x] Android gomobile 绑定 + VpnService（fd 注入 + protect 防回环）
+- [ ] iOS 真机验证（NetworkExtension 骨架已接入，见 docs/ios.md；模拟器不支持 VPN，待真机 + 签名）/ macOS / Linux 适配
+- [x] Android gomobile 绑定 + VpnService（fd 注入 + protect 防回环 + 前台服务通知）
+- [x] iOS 工程骨架：PacketTunnel 扩展 target、App Group 共享、gomobile XCFramework
 - [ ] 订阅自动更新 + subscription-userinfo 流量信息解析
 
 ## M3 — 高级能力
@@ -31,4 +32,4 @@
 - [ ] 一键诊断包（内核日志 + Lint 结果 + 权限状态）
 - [ ] Windows/macOS 特权服务（免管理员运行 TUN）、Android 按应用分流
 - [ ] 本地加密存储 + 应用锁 + i18n
-- [ ] 多主题切换（亮 / 暗 / 高对比）
+- [x] 暗色主题打磨 + 主题模式切换（跟随系统 / 亮 / 暗，持久化）

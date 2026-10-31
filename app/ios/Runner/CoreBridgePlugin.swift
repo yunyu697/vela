@@ -30,6 +30,7 @@ final class CoreBridgePlugin: NSObject, FlutterPlugin {
   static let keyController = "controller"
   static let keySecret = "secret"
   static let keyTun = "tun"
+  static let keyHome = "homeDir"
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -44,7 +45,15 @@ final class CoreBridgePlugin: NSObject, FlutterPlugin {
     case "getPaths":
       let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
       let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-      result(["filesDir": docs.path, "cacheDir": caches.path])
+      var payload: [String: Any] = ["filesDir": docs.path, "cacheDir": caches.path]
+      // App Group 容器：内核跑在扩展进程，只有这里是两个进程都能读写的
+      // 目录（控制器 socket、geoip.metadb 都放在里面）
+      if let group = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: Self.appGroup
+      ) {
+        payload["groupDir"] = group.path
+      }
+      result(payload)
 
     case "startCore":
       guard let args = call.arguments as? [String: Any],
@@ -92,6 +101,9 @@ final class CoreBridgePlugin: NSObject, FlutterPlugin {
     defaults.set(args["controller"] as? String ?? "", forKey: Self.keyController)
     defaults.set(args["secret"] as? String ?? "", forKey: Self.keySecret)
     defaults.set(args["tun"] as? Bool ?? true, forKey: Self.keyTun)
+    // 内核工作目录同样在 App Group 里：geoip.metadb 由 App 侧下载，
+    // 扩展启动内核时要读同一份文件
+    defaults.set(args["homeDir"] as? String ?? "", forKey: Self.keyHome)
     defaults.synchronize()
 
     loadManager { manager, error in
