@@ -20,6 +20,7 @@ import '../../ui/vela_theme.dart';
 import '../../ui/widgets.dart';
 import '../run/core_manager.dart';
 import '../wizard/wizard_page.dart';
+import 'profile_detail_page.dart';
 
 class ProfilesPage extends StatefulWidget {
   const ProfilesPage({super.key, required this.onOpenRun});
@@ -170,6 +171,15 @@ class _ProfilesPageState extends State<ProfilesPage> {
     final copy = await _repo.duplicateProfile(profile.id);
     if (!mounted) return;
     _toast('已复制为「${copy.name}」');
+  }
+
+  /// 打开详情页：节点清单、延迟、分组出口、规则都在那里。
+  Future<void> _openDetail(Profile profile) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProfileDetailPage(profileId: profile.id),
+      ),
+    );
   }
 
   /// 正在更新订阅的配置 id。
@@ -635,6 +645,7 @@ class _ProfilesPageState extends State<ProfilesPage> {
                         onRename: () => _rename(visible[i]),
                         onDuplicate: () => _duplicate(visible[i]),
                         onTags: () => _editTags(visible[i]),
+                        onDetail: () => _openDetail(visible[i]),
                         onSync: () => _refreshSubscription(visible[i]),
                         syncing: _syncing.contains(visible[i].id),
                         onExport: () => _export([visible[i].id]),
@@ -672,6 +683,7 @@ class _ProfileCard extends StatelessWidget {
     required this.onRename,
     required this.onDuplicate,
     required this.onTags,
+    required this.onDetail,
     required this.onSync,
     required this.syncing,
     required this.onExport,
@@ -690,6 +702,7 @@ class _ProfileCard extends StatelessWidget {
   final VoidCallback onRename;
   final VoidCallback onDuplicate;
   final VoidCallback onTags;
+  final VoidCallback onDetail;
   final VoidCallback onSync;
   final bool syncing;
   final VoidCallback onExport;
@@ -809,6 +822,7 @@ class _ProfileCard extends StatelessWidget {
                         onRename: onRename,
                         onDuplicate: onDuplicate,
                         onTags: onTags,
+                        onDetail: onDetail,
                         onSync: onSync,
                         onExport: onExport,
                         onDelete: onDelete,
@@ -944,6 +958,7 @@ class _ProfileMenu extends StatelessWidget {
     required this.onRename,
     required this.onDuplicate,
     required this.onTags,
+    required this.onDetail,
     required this.onSync,
     required this.onExport,
     required this.onDelete,
@@ -955,6 +970,7 @@ class _ProfileMenu extends StatelessWidget {
   final VoidCallback onRename;
   final VoidCallback onDuplicate;
   final VoidCallback onTags;
+  final VoidCallback onDetail;
   final VoidCallback onSync;
   final VoidCallback onExport;
   final VoidCallback onDelete;
@@ -975,6 +991,8 @@ class _ProfileMenu extends StatelessWidget {
             onDuplicate();
           case 'tags':
             onTags();
+          case 'detail':
+            onDetail();
           case 'sync':
             onSync();
           case 'export':
@@ -984,6 +1002,17 @@ class _ProfileMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
+        // 只读入口放最上面：其余六项都会改东西，用户点进来先看内容
+        // 才是常见诉求。
+        const PopupMenuItem(
+          value: 'detail',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.info_outline_rounded, size: 19),
+            title: Text('详情'),
+          ),
+        ),
         PopupMenuItem(
           value: 'favorite',
           child: ListTile(

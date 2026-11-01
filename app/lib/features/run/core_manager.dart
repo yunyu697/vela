@@ -155,6 +155,10 @@ class CoreManager extends ChangeNotifier {
     await _adapter?.selectOutbound(groupTag, outboundTag);
   }
 
+  /// 分组当前选中的出口名；内核未运行时为 null。
+  Future<String?> currentOutbound(String groupTag) async =>
+      _adapter?.currentOutbound(groupTag) ?? Future.value(null);
+
   @override
   void dispose() {
     _statusSub?.cancel();

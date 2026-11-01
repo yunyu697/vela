@@ -86,7 +86,18 @@ class ProxyNode {
       );
 }
 
-enum ProxyGroupType { select, urlTest, fallback, loadBalance }
+/// 分组策略。
+///
+/// [label] 是给人看的形式（`urlTest` → 「自动测速」）；序列化仍走 [name]。
+enum ProxyGroupType {
+  select('手动选择'),
+  urlTest('自动测速'),
+  fallback('故障转移'),
+  loadBalance('负载均衡');
+
+  const ProxyGroupType(this.label);
+  final String label;
+}
 
 /// 代理分组。成员可以是节点 id、其他分组 id，或 `region:<关键词>` 过滤器
 /// （编译期展开为名字匹配该关键词的节点，用于自动地区分组）。
@@ -127,7 +138,15 @@ class ProxyGroup {
       );
 }
 
-enum RuleAction { proxy, direct, reject }
+/// 规则命中后的动作。[label] 用于界面，序列化仍走 [name]。
+enum RuleAction {
+  proxy('代理'),
+  direct('直连'),
+  reject('拒绝');
+
+  const RuleAction(this.label);
+  final String label;
+}
 
 /// 一条分流规则。
 class RuleEntry {

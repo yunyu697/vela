@@ -19,6 +19,7 @@ import 'package:vela/core/ir/profile.dart';
 import 'package:vela/core/settings/app_settings.dart';
 import 'package:vela/core/storage/kv_store.dart';
 import 'package:vela/core/storage/profile_store.dart';
+import 'package:vela/features/profiles/profile_detail_page.dart';
 import 'package:vela/features/profiles/profiles_page.dart';
 import 'package:vela/features/run/run_page.dart';
 import 'package:vela/features/settings/settings_page.dart';
@@ -920,6 +921,109 @@ void main() {
       await tester.pump();
       expect(settings.autoStartLastProfile, isTrue);
     });
+
+    // 详情页此前不存在：配置卡只有「4 节点 / 3 分组」四个数字，用户既
+    // 看不到节点清单，也判断不出哪个节点是通的。
+    Widget detail({ProfileDetailDebug? debug}) => pageApp(
+          ProfileDetailPage(profileId: 'sample-hk', debug: debug),
+        );
+
+    testWidgets('详情页 桌面', (tester) async {
+      await _pumpAt(tester, detail(), const Size(1440, 900));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(ProfileDetailPage),
+        matchesGoldenFile('goldens/profile_detail_desktop.png'),
+      );
+    });
+
+    testWidgets('详情页 手机', (tester) async {
+      await _pumpAt(tester, detail(), const Size(390, 844));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(ProfileDetailPage),
+        matchesGoldenFile('goldens/profile_detail_phone.png'),
+      );
+    });
+
+    testWidgets('详情页 运行中（延迟与出口）', (tester) async {
+      // 延迟分三档 + 一个超时 + 一个没测，四种徽标一次看全
+      await _pumpAt(
+        tester,
+        detail(
+          debug: const ProfileDetailDebug(
+            runningProfileId: 'sample-hk',
+            delays: {
+              'n-hk-01': 45,
+              'n-hk-02': 183,
+              'n-jp-01': 612,
+              'n-sg-01': null,
+            },
+            selection: {'g-select': '🇭🇰 香港 IEPL 专线 01'},
+          ),
+        ),
+        const Size(1440, 900),
+      );
+      expect(find.text('45 ms'), findsOneWidget);
+      expect(find.text('超时'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(ProfileDetailPage),
+        matchesGoldenFile('goldens/profile_detail_running_desktop.png'),
+      );
+    });
+
+    testWidgets('未运行时不能测速', (tester) async {
+      await _pumpAt(tester, detail(), const Size(390, 844));
+      final btn = tester.widget<TextButton>(
+        find.ancestor(
+          of: find.text('测速'),
+          matching: find.byType(TextButton),
+        ),
+      );
+      expect(btn.onPressed, isNull, reason: '内核没跑，测速按钮不该可点');
+      expect(find.textContaining('启动这份配置后才能测速'), findsOneWidget);
+    });
+
+    testWidgets('分组出口弹层列出成员且标出当前项', (tester) async {
+      await _pumpAt(
+        tester,
+        detail(
+          debug: const ProfileDetailDebug(
+            runningProfileId: 'sample-hk',
+            selection: {'g-select': '🇭🇰 香港 IEPL 专线 01'},
+          ),
+        ),
+        const Size(1440, 900),
+      );
+      // 「节点选择」是手动分组，右侧显示当前出口并可点
+      await tester.tap(find.text('🇭🇰 香港 IEPL 专线 01').last);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 80));
+      }
+      expect(find.text('切换出口'), findsOneWidget);
+      expect(find.text('节点选择 · 3 个可选'), findsOneWidget);
+      // 当前项打勾
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    });
+
+    testWidgets('从配置卡菜单进入详情', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(ProfilesPage(onOpenRun: () {})),
+        const Size(1440, 900),
+      );
+      await tester.tap(find.byTooltip('更多操作').first);
+      await tester.pump();
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      await tester.tap(find.text('详情'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 80));
+      }
+      expect(find.byType(ProfileDetailPage), findsOneWidget);
+    });
   });
 
   // ------------------------------------------------------------ 暗色模式
@@ -1090,6 +1194,35 @@ void main() {
       await expectLater(
         find.byType(SettingsPage),
         matchesGoldenFile('goldens/dark_settings_desktop.png'),
+      );
+    });
+
+    // 详情页在暗色下最值得看的是延迟分档色（绿 / 琥珀 / 红）：
+    // 浅色下够用的饱和度，压在深色卡片上常常偏暗或糊成一片。
+    testWidgets('暗色黄金图 详情页 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(
+          const ProfileDetailPage(
+            profileId: 'sample-hk',
+            debug: ProfileDetailDebug(
+              runningProfileId: 'sample-hk',
+              delays: {
+                'n-hk-01': 45,
+                'n-hk-02': 183,
+                'n-jp-01': 612,
+                'n-sg-01': null,
+              },
+              selection: {'g-select': '🇭🇰 香港 IEPL 专线 01'},
+            ),
+          ),
+          brightness: Brightness.dark,
+        ),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(ProfileDetailPage),
+        matchesGoldenFile('goldens/dark_profile_detail_desktop.png'),
       );
     });
   });

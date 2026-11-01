@@ -114,4 +114,10 @@ abstract class CoreAdapter {
 
   /// 手动分组里切换选中的出口（selector）。
   Future<void> selectOutbound(String groupTag, String outboundTag);
+
+  /// 查询分组当前选中的出口名（仅 selector 有意义）。
+  ///
+  /// 界面上必须显示真实值：只让用户「切换」却不告诉他现在挂在哪个节点，
+  /// 等于让他盲选。内核未运行 / 查询失败时返回 null。
+  Future<String?> currentOutbound(String groupTag);
 }

@@ -128,6 +128,19 @@ class SingboxAdapter extends CoreAdapter {
     await api.selectProxy(groupTag, outboundTag);
   }
 
+  @override
+  Future<String?> currentOutbound(String groupTag) async {
+    final api = _api;
+    if (api == null) return null;
+    try {
+      final json = await api.getJson('/proxies/${Uri.encodeComponent(groupTag)}');
+      final now = json['now'];
+      return now is String && now.isNotEmpty ? now : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   ConnectionInfo _connectionFromJson(Map<String, Object?> item) {
     final meta =
         (item['metadata'] as Map<Object?, Object?>?)?.cast<String, Object?>() ??

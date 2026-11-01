@@ -139,6 +139,20 @@ class MihomoAdapter extends CoreAdapter {
     await api.selectProxy(groupTag, outboundTag);
   }
 
+  @override
+  Future<String?> currentOutbound(String groupTag) async {
+    final api = _api;
+    if (api == null) return null;
+    try {
+      final json = await api.getJson('/proxies/${Uri.encodeComponent(groupTag)}');
+      final now = json['now'];
+      return now is String && now.isNotEmpty ? now : null;
+    } catch (_) {
+      // 分组不存在 / 内核刚停：界面上退化成「未知」即可，不该让页面报错
+      return null;
+    }
+  }
+
   ConnectionInfo _connectionFromJson(Map<String, Object?> item) {
     final meta = (item['metadata'] as Map<Object?, Object?>?)?.cast<String, Object?>() ?? const {};
     final host = (meta['host'] ?? '').toString();
