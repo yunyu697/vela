@@ -354,6 +354,31 @@ void main() {
         }
       });
     }
+
+    // 窄屏没有左侧步骤栏，只有一条横向 chip 条；七个 chip 在 390dp 下
+    // 排不进一屏，切步后若不跟随，用户看不到自己在第几步。
+    testWidgets('窄屏步骤条跟随当前步', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(const WizardPage(initialProfileName: '我的配置')),
+        const Size(390, 844),
+      );
+      final state = tester.state<WizardPageState>(find.byType(WizardPage));
+
+      for (var i = 0; i < WizardStep.dns.index; i++) {
+        state.controller.next();
+        for (var k = 0; k < 6; k++) {
+          await tester.pump(const Duration(milliseconds: 80));
+        }
+      }
+      expect(state.controller.step, WizardStep.dns);
+
+      final chip = tester.getRect(find.text(WizardStep.dns.label));
+      expect(chip.left, greaterThanOrEqualTo(0),
+          reason: '当前步骤 chip 被滚出了左边界');
+      expect(chip.right, lessThanOrEqualTo(390),
+          reason: '当前步骤 chip 被滚出了右边界');
+    });
   });
 
   group('样例数据加载', () {
@@ -485,6 +510,43 @@ void main() {
       await expectLater(
         find.byType(WizardPage),
         matchesGoldenFile('goldens/wizard_rules_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 节点步骤 桌面', (tester) async {
+      await wizardAt(
+        tester,
+        WizardStep.nodes,
+        const Size(1440, 900),
+        withNodes: true,
+      );
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_nodes_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 DNS 步骤 桌面', (tester) async {
+      await wizardAt(tester, WizardStep.dns, const Size(1440, 900));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_dns_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 DNS 步骤 手机', (tester) async {
+      await wizardAt(tester, WizardStep.dns, const Size(390, 844));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_dns_phone.png'),
+      );
+    });
+
+    testWidgets('向导 入站步骤 桌面', (tester) async {
+      await wizardAt(tester, WizardStep.inbound, const Size(1440, 900));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_inbound_desktop.png'),
       );
     });
 

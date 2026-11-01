@@ -51,6 +51,16 @@ class WizardPageState extends State<WizardPage> {
   late final _linksCtrl = TextEditingController();
   late final _nameCtrl = TextEditingController(text: _controller.profileName);
 
+  /// 窄屏横向步骤条每个 chip 的 key。
+  ///
+  /// 七个 chip 在 390dp 下排不进一屏，切到第 5 步时条上还停在第 1～4 步，
+  /// 用户看不出自己在哪。切步后把当前 chip 滚到可视区中间。
+  final List<GlobalKey> _stepChipKeys =
+      List.generate(WizardStep.values.length, (_) => GlobalKey());
+
+  /// 上一次同步过的步骤，避免每帧重复滚动。
+  int _syncedStep = 0;
+
   @override
   void initState() {
     super.initState();
@@ -58,7 +68,26 @@ class WizardPageState extends State<WizardPage> {
     _controller.applyDnsPreset(DnsPreset.recommended);
   }
 
-  void _refresh() => setState(() {});
+  void _refresh() {
+    setState(() {});
+    _syncCompactSteps();
+  }
+
+  void _syncCompactSteps() {
+    if (_controller.stepIndex == _syncedStep) return;
+    _syncedStep = _controller.stepIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _stepChipKeys[_syncedStep].currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: Motion.normal),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -294,68 +323,72 @@ class WizardPageState extends State<WizardPage> {
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: ListView.builder(
+      // 用 Row 而非 ListView.builder：只有 7 个 chip，全量构建后每个都
+      // 有 context，才能用 ensureVisible 把当前步滚进可视区。
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
           horizontal: Insets.pageCompact,
           vertical: Insets.sm - 2,
         ),
-        itemCount: WizardStep.values.length,
-        itemBuilder: (context, i) {
-          final step = WizardStep.values[i];
-          final current = i == _controller.stepIndex;
-          final done = i < _controller.stepIndex;
-          return Padding(
-            padding: const EdgeInsets.only(right: Insets.xs),
-            child: Material(
-              color: current
-                  ? theme.colorScheme.surfaceContainerHigh
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(Radii.sm),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(Radii.sm),
-                onTap: done ? () => _goTo(i) : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Insets.sm + 2,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (done)
-                        Icon(
-                          Icons.check_rounded,
-                          size: 13,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        )
-                      else
-                        Text(
-                          '${i + 1}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: current
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      const SizedBox(width: Insets.xs),
-                      Text(
-                        step.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: current
-                              ? theme.colorScheme.onSurface
-                              : theme.colorScheme.onSurfaceVariant,
-                          fontWeight:
-                              current ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                      ),
-                    ],
+        child: Row(
+          children: [
+            for (var i = 0; i < WizardStep.values.length; i++)
+              Padding(
+                key: _stepChipKeys[i],
+                padding: const EdgeInsets.only(right: Insets.xs),
+                child: _buildStepChip(context, WizardStep.values[i], i),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepChip(BuildContext context, WizardStep step, int i) {
+    final theme = Theme.of(context);
+    final current = i == _controller.stepIndex;
+    final done = i < _controller.stepIndex;
+    return Material(
+      color: current ? theme.colorScheme.surfaceContainerHigh : Colors.transparent,
+      borderRadius: BorderRadius.circular(Radii.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Radii.sm),
+        onTap: done ? () => _goTo(i) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Insets.sm + 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (done)
+                Icon(
+                  Icons.check_rounded,
+                  size: 13,
+                  color: theme.colorScheme.onSurfaceVariant,
+                )
+              else
+                Text(
+                  '${i + 1}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: current
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+              const SizedBox(width: Insets.xs),
+              Text(
+                step.label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: current
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -461,7 +494,6 @@ class WizardPageState extends State<WizardPage> {
               ChoiceCard(
                 title: 'mihomo',
                 subtitle: '协议支持最广，SSR / Hysteria v1 等全兼容',
-                icon: Icons.hub_outlined,
                 selected: _controller.coreKind == CoreKind.mihomo,
                 onTap: () => _controller.setCoreKind(CoreKind.mihomo),
               ),
@@ -469,7 +501,6 @@ class WizardPageState extends State<WizardPage> {
               ChoiceCard(
                 title: 'sing-box',
                 subtitle: '新协议跟进快，性能与内存表现优秀',
-                icon: Icons.bolt_rounded,
                 selected: _controller.coreKind == CoreKind.singbox,
                 onTap: () => _controller.setCoreKind(CoreKind.singbox),
               ),
@@ -887,7 +918,6 @@ class WizardPageState extends State<WizardPage> {
               ChoiceCard(
                 title: '混合端口（mixed）',
                 subtitle: '同时提供 HTTP 与 SOCKS5 代理，兼容性最好，推荐',
-                icon: Icons.swap_horiz_rounded,
                 selected: _controller.accessMode == AccessMode.mixed,
                 onTap: () => _controller.setAccessMode(AccessMode.mixed),
               ),
@@ -895,7 +925,6 @@ class WizardPageState extends State<WizardPage> {
               ChoiceCard(
                 title: '系统代理',
                 subtitle: '把系统 HTTP/HTTPS 代理指向混合端口',
-                icon: Icons.settings_ethernet_rounded,
                 selected: _controller.accessMode == AccessMode.systemProxy,
                 onTap: () => _controller.setAccessMode(AccessMode.systemProxy),
               ),
@@ -903,7 +932,6 @@ class WizardPageState extends State<WizardPage> {
               ChoiceCard(
                 title: 'TUN 模式',
                 subtitle: '接管全局流量，需要管理员权限（桌面端）',
-                icon: Icons.shield_outlined,
                 selected: _controller.accessMode == AccessMode.tun,
                 onTap: () => _controller.setAccessMode(AccessMode.tun),
               ),

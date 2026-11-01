@@ -533,7 +533,6 @@ class ChoiceCard extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.subtitle,
-    this.icon,
     this.leading,
     this.trailing,
   });
@@ -542,14 +541,12 @@ class ChoiceCard extends StatelessWidget {
   final String? subtitle;
   final bool selected;
   final VoidCallback onTap;
-  final IconData? icon;
   final Widget? leading;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
     return AnimatedContainer(
       duration: const Duration(milliseconds: Motion.instant),
       curve: Curves.easeOut,
@@ -575,16 +572,12 @@ class ChoiceCard extends StatelessWidget {
               vertical: Insets.md,
             ),
             child: Row(
+              // 顶端对齐：副标题在窄屏会折成两三行，若让勾垂直居中，
+              // 勾会落在两行文字中间，看起来像插进了正文。
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (leading != null) ...[
                   leading!,
-                  const SizedBox(width: Insets.md),
-                ] else if (icon != null) ...[
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: selected ? theme.colorScheme.primary : muted,
-                  ),
                   const SizedBox(width: Insets.md),
                 ],
                 Expanded(
@@ -610,10 +603,14 @@ class ChoiceCard extends StatelessWidget {
                   const SizedBox(width: Insets.sm),
                   trailing!,
                 ] else if (selected)
-                  Icon(
-                    Icons.check_rounded,
-                    size: 18,
-                    color: theme.colorScheme.primary,
+                  Padding(
+                    // 与标题首行视觉居中（行高约 20，图标 18）。
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
               ],
             ),
