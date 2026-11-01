@@ -313,14 +313,9 @@ class _ProfilesPageState extends State<ProfilesPage> {
 
   Widget _buildHeader(
       BuildContext context, AdaptiveScope scope, int count) {
-    final compact = scope.size.isCompact;
+    final pad = scope.size.isCompact ? Insets.pageCompact : Insets.page;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        compact ? Insets.lg : Insets.xxl,
-        compact ? Insets.lg : Insets.xxl,
-        compact ? Insets.lg : Insets.xxl,
-        Insets.md,
-      ),
+      padding: EdgeInsets.fromLTRB(pad, pad, pad, Insets.md),
       child: Row(
         children: [
           Expanded(
@@ -328,7 +323,7 @@ class _ProfilesPageState extends State<ProfilesPage> {
               title: '配置',
               subtitle: _selectMode
                   ? '已选中 ${_selected.length} 项'
-                  : '共 $count 个配置 · 点击卡片可管理',
+                  : '共 $count 个配置',
             ),
           ),
           const SizedBox(width: Insets.md),
@@ -337,14 +332,14 @@ class _ProfilesPageState extends State<ProfilesPage> {
               onPressed: _selected.isEmpty
                   ? null
                   : () => _export(_selected.toList()),
-              icon: const Icon(Icons.download_rounded, size: 18),
+              icon: const Icon(Icons.download_rounded, size: 17),
               label: const Text('导出'),
             ),
             const SizedBox(width: Insets.sm),
             OutlinedButton.icon(
               onPressed:
                   _selected.isEmpty ? null : () => _deleteSelected(),
-              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              icon: const Icon(Icons.delete_outline_rounded, size: 17),
               label: const Text('删除'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
@@ -356,23 +351,22 @@ class _ProfilesPageState extends State<ProfilesPage> {
                 _selectMode = false;
                 _selected.clear();
               }),
-              icon: const Icon(Icons.close_rounded),
+              icon: const Icon(Icons.close_rounded, size: 20),
               tooltip: '退出多选',
             ),
           ] else ...[
             IconButton(
               onPressed: () => setState(() => _selectMode = true),
-              icon: const Icon(Icons.checklist_rounded),
+              icon: const Icon(Icons.checklist_rounded, size: 20),
               tooltip: '多选',
             ),
-            const SizedBox(width: Insets.xs),
             IconButton(
               onPressed: _import,
-              icon: const Icon(Icons.file_upload_outlined),
+              icon: const Icon(Icons.file_upload_outlined, size: 20),
               tooltip: '导入配置',
             ),
-            const SizedBox(width: Insets.xs),
-            VelaGradientButton(
+            const SizedBox(width: Insets.sm),
+            VelaPrimaryButton(
               label: '新建',
               icon: Icons.add_rounded,
               onPressed: _createNew,
@@ -387,51 +381,26 @@ class _ProfilesPageState extends State<ProfilesPage> {
     final theme = Theme.of(context);
     final tags = _repo.allTags;
     final scope = AdaptiveScope.of(context);
+    final pad = scope.size.isCompact ? Insets.pageCompact : Insets.page;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
-        0,
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
-        Insets.md,
-      ),
+      padding: EdgeInsets.fromLTRB(pad, 0, pad, Insets.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: SizedBox(
-                  height: 42,
-                  child: TextField(
-                    onChanged: (v) => setState(() => _query = v),
-                    decoration: InputDecoration(
-                      hintText: '搜索配置名称、标签或备注',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: Insets.lg,
-                        vertical: Insets.md,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Radii.md),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Radii.md),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Radii.md),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.primary,
-                          width: 1.6,
-                        ),
-                      ),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  style: theme.textTheme.bodyMedium,
+                  decoration: const InputDecoration(
+                    hintText: '搜索配置名称、标签或备注',
+                    prefixIcon: Icon(Icons.search_rounded, size: 18),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: Insets.md,
+                      vertical: Insets.md,
                     ),
                   ),
                 ),
@@ -444,12 +413,15 @@ class _ProfilesPageState extends State<ProfilesPage> {
                   _filtersExpanded
                       ? Icons.expand_less_rounded
                       : Icons.tune_rounded,
+                  size: 20,
                 ),
                 tooltip: '筛选与排序',
                 style: IconButton.styleFrom(
                   backgroundColor: _filtersExpanded
-                      ? theme.colorScheme.primary.withValues(alpha: 0.12)
-                      : theme.colorScheme.surfaceContainer,
+                      ? theme.colorScheme.surfaceContainerHigh
+                      : Colors.transparent,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  minimumSize: const Size(40, 40),
                 ),
               ),
             ],
@@ -565,9 +537,9 @@ class _ProfilesPageState extends State<ProfilesPage> {
       title: '还没有配置',
       message: '用引导式向导创建第一个配置：选择内核、导入订阅、'
           '挑选规则集，几步即可生成。',
-      action: VelaGradientButton(
+      action: VelaPrimaryButton(
         label: '创建新配置',
-        icon: Icons.auto_awesome_rounded,
+        icon: Icons.add_rounded,
         onPressed: _createNew,
       ),
     );
@@ -586,9 +558,9 @@ class _ProfilesPageState extends State<ProfilesPage> {
     // 宽屏下右半屏会整片空置。
     return ListView(
       padding: EdgeInsets.fromLTRB(
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
+        scope.size.isCompact ? Insets.pageCompact : Insets.page,
         0,
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
+        scope.size.isCompact ? Insets.pageCompact : Insets.page,
         Insets.xxl,
       ),
       children: [
@@ -613,7 +585,6 @@ class _ProfilesPageState extends State<ProfilesPage> {
                             visible[i].id,
                         selectMode: _selectMode,
                         selected: _selected.contains(visible[i].id),
-                        onTap: () => _onCardTap(visible[i]),
                         onToggleSelect: () => _toggleSelect(visible[i]),
                         onStart: () => _start(visible[i]),
                         onFavorite: () => _toggleFavorite(visible[i]),
@@ -638,12 +609,6 @@ class _ProfilesPageState extends State<ProfilesPage> {
       if (!_selected.remove(profile.id)) _selected.add(profile.id);
     });
   }
-
-  void _onCardTap(Profile profile) {
-    if (_selectMode) {
-      _toggleSelect(profile);
-    }
-  }
 }
 
 /// 配置卡片。
@@ -655,7 +620,6 @@ class _ProfileCard extends StatelessWidget {
     required this.active,
     required this.selectMode,
     required this.selected,
-    required this.onTap,
     required this.onToggleSelect,
     required this.onStart,
     required this.onFavorite,
@@ -672,7 +636,6 @@ class _ProfileCard extends StatelessWidget {
   final bool active;
   final bool selectMode;
   final bool selected;
-  final VoidCallback onTap;
   final VoidCallback onToggleSelect;
   final VoidCallback onStart;
   final VoidCallback onFavorite;
@@ -686,18 +649,20 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isSingbox = profile.coreKind == CoreKind.singbox;
-    final coreColor = isSingbox ? VelaColors.azure : VelaColors.violet;
+    final coreColor = VelaColors.resolve(
+      isSingbox ? VelaColors.azure : VelaColors.violet,
+      theme.brightness,
+    );
     final accent = Color(
       ProfileMetaPalette.colorAt(meta.colorIndex),
     );
 
     return VelaCard(
-      onTap: selectMode ? onToggleSelect : onTap,
+      // 点击卡片 = 启动（卡片上没有别的高频动作，空着反而让人以为坏了）
+      onTap: selectMode ? onToggleSelect : onStart,
       borderColor: selected
           ? theme.colorScheme.primary
-          : (meta.favorite
-              ? accent.withValues(alpha: 0.5)
-              : null),
+          : (meta.favorite ? accent.withValues(alpha: 0.45) : null),
       padding: const EdgeInsets.all(Insets.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -708,12 +673,12 @@ class _ProfileCard extends StatelessWidget {
             children: [
               if (selectMode)
                 Padding(
-                  padding: const EdgeInsets.only(right: Insets.sm, top: 2),
+                  padding: const EdgeInsets.only(right: Insets.sm, top: 1),
                   child: Icon(
                     selected
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked_rounded,
-                    size: 20,
+                    size: 18,
                     color: selected
                         ? theme.colorScheme.primary
                         : theme.colorScheme.onSurfaceVariant,
@@ -729,22 +694,20 @@ class _ProfileCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             meta.displayName(profile),
-                            style: theme.textTheme.titleMedium,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (meta.favorite) ...[
-                          const SizedBox(width: Insets.xs),
-                          Icon(
-                            Icons.star_rounded,
-                            size: 16,
-                            color: accent,
-                          ),
+                          const SizedBox(width: Insets.xs + 2),
+                          Icon(Icons.star_rounded, size: 14, color: accent),
                         ],
                       ],
                     ),
-                    const SizedBox(height: Insets.xs),
+                    const SizedBox(height: Insets.sm - 2),
                     Row(
                       children: [
                         StatusPill(
@@ -752,10 +715,13 @@ class _ProfileCard extends StatelessWidget {
                           color: coreColor,
                         ),
                         if (active) ...[
-                          const SizedBox(width: Insets.sm),
-                          const StatusPill(
+                          const SizedBox(width: Insets.xs + 2),
+                          StatusPill(
                             label: '运行中',
-                            color: VelaColors.emerald,
+                            color: VelaColors.resolve(
+                              VelaColors.emerald,
+                              theme.brightness,
+                            ),
                             pulsing: true,
                           ),
                         ],
@@ -777,7 +743,7 @@ class _ProfileCard extends StatelessWidget {
             ],
           ),
           if (meta.tags.isNotEmpty || meta.note.isNotEmpty) ...[
-            const SizedBox(height: Insets.md),
+            const SizedBox(height: Insets.sm + 2),
             Wrap(
               spacing: Insets.xs,
               runSpacing: Insets.xs,
@@ -787,7 +753,7 @@ class _ProfileCard extends StatelessWidget {
               ],
             ),
             if (meta.note.isNotEmpty) ...[
-              const SizedBox(height: Insets.sm),
+              const SizedBox(height: Insets.xs + 2),
               Text(
                 meta.note,
                 style: theme.textTheme.bodySmall,
@@ -797,30 +763,72 @@ class _ProfileCard extends StatelessWidget {
             ],
           ],
           const SizedBox(height: Insets.md),
-          InfoRow(label: '节点', value: '${profile.nodes.length}'),
-          InfoRow(label: '分组', value: '${profile.groups.length}'),
-          InfoRow(label: '规则', value: '${profile.rules.length}'),
-          InfoRow(
-            label: 'DNS',
-            value: profile.dns.mode.name,
-            monospace: true,
-          ),
-          if (meta.useCount > 0) ...[
-            const SizedBox(height: Insets.xs),
-            Text(
-              '已启动 ${meta.useCount} 次'
-              '${meta.lastUsedAt != null ? ' · 最近 ${_ago(meta.lastUsedAt!)}' : ''}',
-              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-            ),
-          ],
+          Divider(height: 1, color: theme.colorScheme.outlineVariant),
           const SizedBox(height: Insets.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: running ? null : onStart,
-              icon: const Icon(Icons.play_arrow_rounded, size: 19),
-              label: Text(running ? '请先停止当前内核' : '启动'),
-            ),
+          // 四项关键指标压成一行，替代原来四行「虚线牵引」的信息行：
+          // 同样的信息量，高度从约 110px 降到 40px。
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  label: '节点',
+                  value: '${profile.nodes.length}',
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: '分组',
+                  value: '${profile.groups.length}',
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: '规则',
+                  value: '${profile.rules.length}',
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: 'DNS',
+                  value: profile.dns.mode.name,
+                  compact: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Insets.md),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  meta.useCount > 0
+                      ? '已启动 ${meta.useCount} 次'
+                          '${meta.lastUsedAt != null ? ' · ${_ago(meta.lastUsedAt!)}' : ''}'
+                      : '尚未启动过',
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: Insets.sm),
+              if (running && !active)
+                Text(
+                  '已有内核在运行',
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                )
+              else
+                VelaPrimaryButton(
+                  label: active ? '查看' : '启动',
+                  icon: active
+                      ? Icons.chevron_right_rounded
+                      : Icons.play_arrow_rounded,
+                  tone: active ? VelaButtonTone.quiet : VelaButtonTone.primary,
+                  onPressed: onStart,
+                ),
+            ],
           ),
         ],
       ),

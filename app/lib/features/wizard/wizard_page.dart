@@ -116,10 +116,10 @@ class WizardPageState extends State<WizardPage> {
     final theme = Theme.of(context);
     return Container(
       padding: EdgeInsets.fromLTRB(
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
-        Insets.md,
-        scope.size.isCompact ? Insets.md : Insets.xl,
-        Insets.md,
+        scope.size.isCompact ? Insets.pageCompact : Insets.page,
+        Insets.sm,
+        scope.size.isCompact ? Insets.md : Insets.page,
+        Insets.sm,
       ),
       decoration: BoxDecoration(
         border: Border(
@@ -130,28 +130,18 @@ class WizardPageState extends State<WizardPage> {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
             tooltip: '返回',
           ),
           const SizedBox(width: Insets.xs),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              gradient: VelaColors.brandGradient,
-              borderRadius: BorderRadius.circular(Radii.sm),
-            ),
-            child: const Center(
-              child: VelaLogoMark(size: 18, color: Colors.white),
-            ),
-          ),
-          const SizedBox(width: Insets.md),
+          VelaLogoMark(size: 18, color: theme.colorScheme.onSurface),
+          const SizedBox(width: Insets.sm + 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('配置向导', style: theme.textTheme.titleMedium),
+                Text('配置向导', style: theme.textTheme.titleSmall),
                 Text(
                   '第 ${_controller.stepIndex + 1} / ${WizardStep.values.length} 步 · ${_controller.step.label}',
                   style: theme.textTheme.bodySmall,
@@ -173,25 +163,25 @@ class WizardPageState extends State<WizardPage> {
     final total = WizardStep.values.length;
     final progress = (_controller.stepIndex + 1) / total;
     return SizedBox(
-      width: scope.size == WindowSize.wide ? 260 : 160,
+      width: scope.size == WindowSize.wide ? 200 : 130,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '${(progress * 100).round()}%',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w700,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: Insets.xs),
+          const SizedBox(height: Insets.xs + 1),
           ClipRRect(
             borderRadius: BorderRadius.circular(Radii.pill),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 5,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              minHeight: 3,
+              backgroundColor: theme.colorScheme.surfaceContainerHigh,
               valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
             ),
           ),
@@ -205,7 +195,7 @@ class WizardPageState extends State<WizardPage> {
   Widget _buildStepRail(BuildContext context, List<WizardStep> steps) {
     final theme = Theme.of(context);
     return Container(
-      width: 232,
+      width: 204,
       decoration: BoxDecoration(
         border: Border(
           right: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -225,61 +215,52 @@ class WizardPageState extends State<WizardPage> {
     final theme = Theme.of(context);
     final current = index == _controller.stepIndex;
     final done = index < _controller.stepIndex;
-    final color = current
-        ? theme.colorScheme.primary
-        : (done ? VelaColors.emerald : theme.colorScheme.onSurfaceVariant);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: Insets.xs),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Material(
-        color: current
-            ? theme.colorScheme.primary.withValues(alpha: 0.10)
-            : Colors.transparent,
+        color: current ? theme.colorScheme.surfaceContainerHigh : Colors.transparent,
         borderRadius: BorderRadius.circular(Radii.md),
         child: InkWell(
           borderRadius: BorderRadius.circular(Radii.md),
           onTap: done ? () => _goTo(index) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: Insets.md,
-              vertical: Insets.md,
-            ),
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: Insets.md),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: Motion.fast),
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: current
-                        ? theme.colorScheme.primary
-                        : (done
-                            ? VelaColors.emerald.withValues(alpha: 0.16)
-                            : theme.colorScheme.surfaceContainerHighest),
-                    border: Border.all(
-                      color: current || done ? Colors.transparent : theme.colorScheme.outlineVariant,
-                    ),
-                  ),
+                SizedBox(
+                  width: 16,
                   child: Center(
-                    child: done && !current
-                        ? const Icon(Icons.check_rounded, size: 15, color: VelaColors.emerald)
+                    child: done
+                        ? Icon(
+                            Icons.check_rounded,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          )
                         : Text(
                             '${index + 1}',
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: current ? Colors.white : color,
-                              fontWeight: FontWeight.w700,
+                              color: current
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                   ),
                 ),
-                const SizedBox(width: Insets.md),
+                const SizedBox(width: Insets.sm + 2),
                 Expanded(
                   child: Text(
                     step.label,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: current ? FontWeight.w700 : FontWeight.w500,
-                      color: current ? theme.colorScheme.primary : null,
+                      fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+                      color: current
+                          ? theme.colorScheme.onSurface
+                          : (done
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -307,7 +288,7 @@ class WizardPageState extends State<WizardPage> {
   Widget _buildCompactSteps(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      height: 52,
+      height: 44,
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -315,41 +296,38 @@ class WizardPageState extends State<WizardPage> {
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: Insets.lg, vertical: Insets.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.pageCompact,
+          vertical: Insets.sm - 2,
+        ),
         itemCount: WizardStep.values.length,
         itemBuilder: (context, i) {
           final step = WizardStep.values[i];
           final current = i == _controller.stepIndex;
           final done = i < _controller.stepIndex;
           return Padding(
-            padding: const EdgeInsets.only(right: Insets.sm),
+            padding: const EdgeInsets.only(right: Insets.xs),
             child: Material(
               color: current
-                  ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                  ? theme.colorScheme.surfaceContainerHigh
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(Radii.pill),
+              borderRadius: BorderRadius.circular(Radii.sm),
               child: InkWell(
-                borderRadius: BorderRadius.circular(Radii.pill),
+                borderRadius: BorderRadius.circular(Radii.sm),
                 onTap: done ? () => _goTo(i) : null,
-                child: Container(
+                child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Insets.md,
-                    vertical: Insets.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(Radii.pill),
-                    border: Border.all(
-                      color: current
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outlineVariant,
-                    ),
+                    horizontal: Insets.sm + 2,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (done)
-                        const Icon(Icons.check_rounded,
-                            size: 14, color: VelaColors.emerald)
+                        Icon(
+                          Icons.check_rounded,
+                          size: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        )
                       else
                         Text(
                           '${i + 1}',
@@ -357,18 +335,18 @@ class WizardPageState extends State<WizardPage> {
                             color: current
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       const SizedBox(width: Insets.xs),
                       Text(
                         step.label,
-                        style: theme.textTheme.labelMedium?.copyWith(
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: current
-                              ? theme.colorScheme.primary
+                              ? theme.colorScheme.onSurface
                               : theme.colorScheme.onSurfaceVariant,
                           fontWeight:
-                              current ? FontWeight.w700 : FontWeight.w500,
+                              current ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
                     ],
@@ -395,14 +373,14 @@ class WizardPageState extends State<WizardPage> {
             key: ValueKey(_controller.step),
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                scope.size.isCompact ? Insets.lg : Insets.xxl,
+                scope.size.isCompact ? Insets.pageCompact : Insets.page,
                 Insets.xl,
-                scope.size.isCompact ? Insets.lg : Insets.xxl,
+                scope.size.isCompact ? Insets.pageCompact : Insets.page,
                 Insets.xl,
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
+                  constraints: const BoxConstraints(maxWidth: 720),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -440,19 +418,19 @@ class WizardPageState extends State<WizardPage> {
   }
 
   Widget _stepCard(BuildContext context, Widget child, {String? hint}) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (hint != null) ...[
-          Text(
-            hint,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: Insets.lg),
-        ],
         VelaCard(child: child),
+        if (hint != null) ...[
+          const SizedBox(height: Insets.sm + 2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
+            child: Text(hint, style: theme.textTheme.bodySmall),
+          ),
+        ],
+        const SizedBox(height: Insets.lg),
       ],
     );
   }
@@ -562,7 +540,7 @@ class WizardPageState extends State<WizardPage> {
           onChanged: (v) => _controller.setSource(SourceKind.subscription, v),
         ),
         const SizedBox(height: Insets.md),
-        VelaGradientButton(
+        VelaPrimaryButton(
           label: '拉取节点',
           icon: Icons.cloud_download_outlined,
           expand: true,
@@ -590,7 +568,7 @@ class WizardPageState extends State<WizardPage> {
           ),
         ),
         const SizedBox(height: Insets.md),
-        VelaGradientButton(
+        VelaPrimaryButton(
           label: '导入',
           icon: Icons.input_rounded,
           expand: true,
@@ -620,18 +598,17 @@ class WizardPageState extends State<WizardPage> {
   Widget _infoNote(BuildContext context, IconData icon, String text) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(Insets.lg),
+      padding: const EdgeInsets.all(Insets.md),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(Radii.md),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: Insets.md),
-          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+          Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: Insets.sm + 2),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
         ],
       ),
     );
@@ -657,7 +634,7 @@ class WizardPageState extends State<WizardPage> {
       padding: const EdgeInsets.only(top: Insets.md),
       child: _statusBanner(
         context,
-        color: VelaColors.emerald,
+        color: VelaColors.resolve(VelaColors.emerald, theme.brightness),
         icon: Icons.check_circle_outline_rounded,
         text: '已解析 $count 个节点'
             '${info != null && info.total > 0 ? ' · 流量 ${_fmtBytes(info.used)}/${_fmtBytes(info.total)}' : ''}',
@@ -671,23 +648,19 @@ class WizardPageState extends State<WizardPage> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
-        horizontal: Insets.lg,
-        vertical: Insets.md,
+        horizontal: Insets.md,
+        vertical: Insets.sm + 2,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: Insets.sm),
           Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodySmall?.copyWith(color: color),
-            ),
+            child: Text(text, style: theme.textTheme.bodySmall),
           ),
         ],
       ),
@@ -747,20 +720,6 @@ class WizardPageState extends State<WizardPage> {
                   padding: const EdgeInsets.only(bottom: Insets.sm),
                   child: Row(
                     children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(Radii.sm),
-                        ),
-                        child: Icon(
-                          Icons.lan_outlined,
-                          size: 15,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: Insets.md),
                       Expanded(
                         child: Text(
                           n.name,
@@ -992,8 +951,11 @@ class WizardPageState extends State<WizardPage> {
   Widget _buildLintSidePanel(BuildContext context) {
     final theme = Theme.of(context);
     final issues = _controller.currentLint;
+    final accent = issues.isEmpty
+        ? VelaColors.resolve(VelaColors.emerald, theme.brightness)
+        : VelaColors.resolve(VelaColors.amber, theme.brightness);
     return Container(
-      width: 300,
+      width: 280,
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -1007,18 +969,15 @@ class WizardPageState extends State<WizardPage> {
             child: Row(
               children: [
                 Icon(
-                  issues.isEmpty ? Icons.verified_outlined : Icons.warning_amber_rounded,
-                  size: 20,
-                  color: issues.isEmpty ? VelaColors.emerald : VelaColors.amber,
+                  issues.isEmpty ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
+                  size: 17,
+                  color: accent,
                 ),
                 const SizedBox(width: Insets.sm),
                 Expanded(
                   child: Text('检查结果', style: theme.textTheme.titleSmall),
                 ),
-                StatusPill(
-                  label: '${issues.length}',
-                  color: issues.isEmpty ? VelaColors.emerald : VelaColors.amber,
-                ),
+                StatusPill(label: '${issues.length}', color: accent),
               ],
             ),
           ),
@@ -1032,7 +991,9 @@ class WizardPageState extends State<WizardPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.check_circle_outline_rounded,
-                              size: 34, color: VelaColors.emerald.withValues(alpha: 0.7)),
+                              size: 26,
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.7)),
                           const SizedBox(height: Insets.md),
                           Text('未发现问题', style: theme.textTheme.titleSmall),
                           const SizedBox(height: Insets.xs),
@@ -1087,13 +1048,12 @@ class WizardPageState extends State<WizardPage> {
 
     return Container(
       padding: EdgeInsets.fromLTRB(
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
+        scope.size.isCompact ? Insets.pageCompact : Insets.page,
         Insets.md,
-        scope.size.isCompact ? Insets.lg : Insets.xxl,
+        scope.size.isCompact ? Insets.pageCompact : Insets.page,
         Insets.md,
       ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.55),
         border: Border(
           top: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
@@ -1103,7 +1063,7 @@ class WizardPageState extends State<WizardPage> {
           if (_controller.stepIndex > 0)
             OutlinedButton.icon(
               onPressed: _controller.back,
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              icon: const Icon(Icons.arrow_back_rounded, size: 17),
               label: const Text('上一步'),
             ),
           const Spacer(),
@@ -1112,19 +1072,17 @@ class WizardPageState extends State<WizardPage> {
               padding: const EdgeInsets.only(right: Insets.lg),
               child: Text(
                 '第 ${_controller.stepIndex + 1} / ${WizardStep.values.length} 步',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodySmall,
               ),
             ),
           if (!isLast)
-            VelaGradientButton(
+            VelaPrimaryButton(
               label: '下一步',
               icon: Icons.arrow_forward_rounded,
               onPressed: _controller.canAdvance ? _controller.next : null,
             )
           else
-            VelaGradientButton(
+            VelaPrimaryButton(
               label: '完成并保存',
               icon: Icons.check_rounded,
               onPressed: () => _finish(context),
@@ -1191,8 +1149,8 @@ class _ScenarioChip extends StatelessWidget {
       message: scenario.description,
       child: Material(
         color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.14)
-            : theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.6),
+            ? theme.colorScheme.surfaceContainerHigh
+            : Colors.transparent,
         shape: StadiumBorder(
           side: BorderSide(
             color: selected
@@ -1205,24 +1163,24 @@ class _ScenarioChip extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: Insets.lg,
-              vertical: Insets.sm + 2,
+              horizontal: Insets.md + 2,
+              vertical: Insets.sm - 1,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (selected) ...[
                   Icon(Icons.check_rounded,
-                      size: 16, color: theme.colorScheme.primary),
+                      size: 14, color: theme.colorScheme.primary),
                   const SizedBox(width: Insets.xs),
                 ],
                 Text(
                   scenario.name,
-                  style: theme.textTheme.labelLarge?.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: selected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurface,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
               ],
@@ -1261,11 +1219,14 @@ class _RuleSetTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final actionColor = switch (ruleSet.suggestedAction) {
-      RuleAction.direct => VelaColors.emerald,
-      RuleAction.proxy => VelaColors.violet,
-      RuleAction.reject => VelaColors.rose,
-    };
+    final actionColor = VelaColors.resolve(
+      switch (ruleSet.suggestedAction) {
+        RuleAction.direct => VelaColors.emerald,
+        RuleAction.proxy => VelaColors.violet,
+        RuleAction.reject => VelaColors.rose,
+      },
+      theme.brightness,
+    );
     final actionLabel = switch (ruleSet.suggestedAction) {
       RuleAction.direct => '直连',
       RuleAction.proxy => '代理',
@@ -1273,17 +1234,15 @@ class _RuleSetTile extends StatelessWidget {
     };
 
     return Material(
-      color: selected
-          ? theme.colorScheme.primary.withValues(alpha: 0.07)
-          : Colors.transparent,
+      color: selected ? theme.colorScheme.surfaceContainer : Colors.transparent,
       borderRadius: BorderRadius.circular(Radii.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(Radii.md),
         onTap: onToggle,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: Insets.md,
-            vertical: Insets.md,
+            horizontal: Insets.xs,
+            vertical: Insets.xs + 2,
           ),
           child: Row(
             children: [
@@ -1291,6 +1250,7 @@ class _RuleSetTile extends StatelessWidget {
                 value: selected,
                 onChanged: (_) => onToggle(),
                 visualDensity: VisualDensity.compact,
+                side: BorderSide(color: theme.colorScheme.outline),
               ),
               const SizedBox(width: Insets.sm),
               Expanded(
@@ -1299,7 +1259,7 @@ class _RuleSetTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(ruleSet.name, style: theme.textTheme.bodyMedium),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       ruleSet.description,
                       style: theme.textTheme.bodySmall,
@@ -1330,21 +1290,26 @@ class _LintTile extends StatelessWidget {
     final theme = Theme.of(context);
     final (color, icon) = switch (issue.severity) {
       LintSeverity.error => (theme.colorScheme.error, Icons.error_outline_rounded),
-      LintSeverity.warning => (VelaColors.amber, Icons.warning_amber_rounded),
-      LintSeverity.info => (VelaColors.azure, Icons.info_outline_rounded),
+      LintSeverity.warning => (
+          VelaColors.resolve(VelaColors.amber, theme.brightness),
+          Icons.warning_amber_rounded
+        ),
+      LintSeverity.info => (
+          VelaColors.resolve(VelaColors.azure, theme.brightness),
+          Icons.info_outline_rounded
+        ),
     };
 
     return Container(
       padding: const EdgeInsets.all(Insets.md),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: color.withValues(alpha: 0.26)),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 17, color: color),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: Insets.sm),
           Expanded(
             child: Column(
@@ -1355,11 +1320,11 @@ class _LintTile extends StatelessWidget {
                   issue.message,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 if (issue.fixHint != null) ...[
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     issue.fixHint!,
                     style: theme.textTheme.bodySmall?.copyWith(fontSize: 11.5),

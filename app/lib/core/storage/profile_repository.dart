@@ -111,15 +111,20 @@ class ProfileMeta {
 ///
 /// 用 int 而非 Color，避免 core 层依赖 Flutter 渲染库。
 abstract final class ProfileMetaPalette {
+  /// 标签/星标取色：低饱和的八个色相。
+  ///
+  /// 之前用的是 0xFF4F46E5 / 0xFFE11D48 这类高饱和品牌色，标签一多
+  /// 就在卡片里形成一片刺眼的彩色碎片。这里统一降到「灰调 + 一点色相」，
+  /// 既能区分标签，又不会把注意力从配置名上抢走。
   static const List<int> colors = [
-    0xFF4F46E5, // 靛蓝
-    0xFF7C3AED, // 紫罗兰
-    0xFF0EA5E9, // 天青
-    0xFF10B981, // 翠绿
-    0xFFF59E0B, // 琥珀
-    0xFFE11D48, // 玫红
-    0xFF0891B2, // 深青
-    0xFF65A30D, // 苔绿
+    0xFF3E5C76, // 黛蓝
+    0xFF6B5E86, // 紫灰
+    0xFF456E8A, // 青灰
+    0xFF4C7A62, // 松绿
+    0xFF9A7429, // 赭石
+    0xFFA8443A, // 砖红
+    0xFF4F7079, // 深青
+    0xFF6E7B4F, // 苔灰
   ];
 
   static int colorAt(int index) =>

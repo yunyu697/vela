@@ -22,7 +22,15 @@ void main() {
     }
     final kv =
         (jsonDecode(kvFile.readAsStringSync()) as Map).cast<String, Object?>();
-    final list = jsonDecode(kv['boxhub.profiles'] as String) as List;
+    // 该文件是**真实用户数据**，键是否存在取决于本机应用当前状态：
+    // 只写了 profileMeta（配置列表为空/被清空）时没有 boxhub.profiles，
+    // 直接强转会在测试里抛 Null cast，看起来像代码 bug。这里退化为跳过。
+    final rawList = kv['boxhub.profiles'];
+    if (rawList is! String) {
+      markTestSkipped('用户 profiles.json 中没有配置列表（只有元数据）');
+      return;
+    }
+    final list = jsonDecode(rawList) as List;
     if (list.isEmpty) {
       markTestSkipped('用户 profiles.json 为空（尚未保存任何配置）');
       return;

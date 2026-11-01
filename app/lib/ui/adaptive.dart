@@ -274,7 +274,7 @@ class _SideNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      width: extended ? 208 : 76,
+      width: extended ? 212 : 68,
       decoration: BoxDecoration(
         border: Border(
           right: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -285,17 +285,21 @@ class _SideNavigation extends StatelessWidget {
         children: [
           const SizedBox(height: Insets.lg),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+            padding: EdgeInsets.symmetric(
+              horizontal: extended ? Insets.lg : 0,
+            ),
             child: Row(
+              mainAxisAlignment:
+                  extended ? MainAxisAlignment.start : MainAxisAlignment.center,
               children: [
-                const VelaLogoMark(size: 30),
+                VelaLogoMark(size: 22, color: theme.colorScheme.onSurface),
                 if (extended) ...[
-                  const SizedBox(width: Insets.md),
+                  const SizedBox(width: Insets.sm + 2),
                   Text(
                     'Vela',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ],
@@ -362,18 +366,17 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Material(
-      color: selected
-          ? theme.colorScheme.primary.withValues(alpha: 0.12)
-          : Colors.transparent,
+      color: selected ? scheme.surfaceContainerHigh : Colors.transparent,
       borderRadius: BorderRadius.circular(Radii.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(Radii.md),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Insets.md,
-            vertical: Insets.md,
+        child: Container(
+          height: 38,
+          padding: EdgeInsets.symmetric(
+            horizontal: extended ? Insets.md : 0,
           ),
           child: Row(
             mainAxisAlignment: extended
@@ -384,23 +387,19 @@ class _NavItem extends StatelessWidget {
                 selected
                     ? (destination.selectedIcon ?? destination.icon)
                     : destination.icon,
-                size: 22,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
+                size: 19,
+                color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
               ),
               if (extended) ...[
-                const SizedBox(width: Insets.md),
+                const SizedBox(width: Insets.md - 2),
                 Expanded(
                   child: Text(
                     destination.label,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500,
+                      color:
+                          selected ? scheme.onSurface : scheme.onSurfaceVariant,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -648,24 +647,21 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
   }
 }
 
-/// 页面背景：柔和的品牌渐变光斑。
+/// 页面背景。
 ///
-/// 大面积色块 + 若干低透明度径向渐变，模拟 Apple 系应用的
-/// 「材质」观感，同时保证正文对比度。
+/// 只有一层极浅的纸面渐变（左上略亮、右下略沉），不加任何彩色光斑。
+/// 之前的三团径向渐变会在深色下形成明显的「紫色雾」，既抢注意力
+/// 又让卡片的边界变模糊——层次应该来自底色与留白，而不是光。
 ///
-/// 性能要点：三个光斑是 400px 级别的径向渐变，若随内容一起重绘，
-/// 每帧都要重新光栅化。这里用 [RepaintBoundary] 把背景隔离成独立层，
-/// 内容变化时不会重绘背景。
+/// 用 [RepaintBoundary] 把背景隔离成独立层，内容变化时不会重绘。
 class VelaBackdrop extends StatelessWidget {
-  const VelaBackdrop({super.key, this.child, this.intensity = 1.0});
+  const VelaBackdrop({super.key, this.child});
 
   final Widget? child;
-  final double intensity;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -673,62 +669,11 @@ class VelaBackdrop extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? const [Color(0xFF161924), Color(0xFF0D1017)]
-                : const [Color(0xFFF7F8FC), Color(0xFFEFF1F8)],
+                ? const [Color(0xFF16171A), Color(0xFF101113)]
+                : const [Color(0xFFFAFAF8), Color(0xFFF2F2EF)],
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -140,
-              left: -100,
-              child: _Glow(
-                color: scheme.primary.withValues(alpha: 0.16 * intensity),
-                size: 420,
-              ),
-            ),
-            Positioned(
-              top: 80,
-              right: -140,
-              child: _Glow(
-                color: scheme.secondary.withValues(alpha: 0.13 * intensity),
-                size: 380,
-              ),
-            ),
-            Positioned(
-              bottom: -180,
-              left: 120,
-              child: _Glow(
-                color: scheme.tertiary.withValues(alpha: 0.10 * intensity),
-                size: 400,
-              ),
-            ),
-            if (child != null) Positioned.fill(child: child!),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Glow extends StatelessWidget {
-  const _Glow({required this.color, required this.size});
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
-          ),
-        ),
+        child: child ?? const SizedBox.expand(),
       ),
     );
   }

@@ -65,7 +65,8 @@ Future<void> _pumpAt(
 Future<void> _settleAsyncIO(WidgetTester tester) async {
   // 轮数按最坏链路估算：仓库 init 现在含 vault 打开 + 加密读写 +
   // chmod 子进程（每轮只推进一个 await 台阶，子进程一次就要占掉数轮）。
-  for (var i = 0; i < 40; i++) {
+  // 80 轮覆盖「冷启动首个测试」的完整链路；40 轮在首测会偶发读不到数据。
+  for (var i = 0; i < 80; i++) {
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 15));
     });

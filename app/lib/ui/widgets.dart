@@ -1,72 +1,53 @@
 /// Vela 共享 UI 组件库。
 ///
-/// 所有页面复用这里的组件，保证视觉与对齐一致：
-/// 卡片、统计磁贴、状态胶囊、章节标题、空状态、信息行、渐变按钮。
+/// 设计约定（全库统一）：
+///  - **卡片 = 白纸 + 发丝线**：无投影、无渐变、无半透明叠加。
+///  - **图标不做彩色底块**：彩色小方块一多，界面就变成「图标墙」。
+///    图标只在语义状态（运行中/错误）时才着色。
+///  - **数字优先**：统计项用「小标签 + 大数字」，而不是图标 + 数字。
 library;
 
 import 'package:flutter/material.dart';
 
 import 'tokens.dart';
-import 'vela_theme.dart';
 
-/// 玻璃质感卡片：半透明表面 + 细描边 + 柔和阴影。
+/// 卡片：表面色 + 1px 发丝线，无投影。
 class VelaCard extends StatelessWidget {
   const VelaCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(Insets.xl),
+    this.padding = const EdgeInsets.all(Insets.lg),
     this.onTap,
-    this.gradient,
     this.borderColor,
     this.radius = Radii.lg,
-    this.elevated = true,
+    this.tinted = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
-  final Gradient? gradient;
+
+  /// 覆盖描边色（例如「已选中」「收藏」态）。
   final Color? borderColor;
   final double radius;
-  final bool elevated;
+
+  /// 用略深的表面色填充（用于次级信息块，如连接表头）。
+  final bool tinted;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final shape = BorderRadius.circular(radius);
-    final surface = gradient != null
-        ? null
-        : (isDark
-            ? theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.72)
-            : Colors.white.withValues(alpha: 0.86));
+    final surface = tinted
+        ? theme.colorScheme.surfaceContainer
+        : (isDark ? theme.colorScheme.surfaceContainerLow : theme.colorScheme.surface);
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: surface,
-        gradient: gradient,
         borderRadius: shape,
-        border: Border.all(
-          color: borderColor ?? theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
-        ),
-        boxShadow: elevated
-            // 柔和的小范围投影：偏移小、透明度低，避免看起来像
-            // 卡片下方压着一块错位的副本。
-            //
-            // 模糊半径刻意压到 18（而非 30）：大模糊半径的阴影需要更大的
-            // 离屏缓冲与更多采样，首页十几张卡片叠加时开销可观，而
-            // 18px + 低透明度在视觉上几乎无差别。
-            ? [
-                BoxShadow(
-                  color: isDark
-                      ? const Color(0xFF000000).withValues(alpha: 0.42)
-                      : const Color(0xFF1B2340).withValues(alpha: 0.07),
-                  blurRadius: 18,
-                  offset: const Offset(0, 4),
-                  spreadRadius: -5,
-                ),
-              ]
-            : null,
+        border: Border.all(color: borderColor ?? theme.colorScheme.outlineVariant),
       ),
       child: Material(
         color: Colors.transparent,
@@ -81,21 +62,17 @@ class VelaCard extends StatelessWidget {
   }
 }
 
-/// 章节标题：图标 + 标题 + 副标题 + 可选尾部动作。
+/// 章节标题：标题 + 可选副标题 + 可选尾部动作。
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
     required this.title,
     this.subtitle,
-    this.icon,
-    this.iconColor,
     this.trailing,
   });
 
   final String title;
   final String? subtitle;
-  final IconData? icon;
-  final Color? iconColor;
   final Widget? trailing;
 
   @override
@@ -104,29 +81,12 @@ class SectionHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (icon != null) ...[
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: (iconColor ?? theme.colorScheme.primary)
-                  .withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(Radii.sm),
-            ),
-            child: Icon(
-              icon,
-              size: 19,
-              color: iconColor ?? theme.colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: Insets.md),
-        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: theme.textTheme.titleMedium),
+              Text(title, style: theme.textTheme.titleSmall),
               if (subtitle != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -149,101 +109,82 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// 统计磁贴：图标 + 数值 + 标签。
+/// 统计项：小标签在上、数字在下。
 ///
-/// 使用 [FittedBox] 保证长数值在窄容器中缩小显示而非溢出，
-/// 按钮/数值类元素不会被拉伸变形。
+/// 相比「彩色圆形图标 + 数字」的磁贴，这种排法占位更小、信息密度更高，
+/// 也不会让页面出现四五个互不相干的颜色。
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
-    required this.icon,
     required this.label,
     required this.value,
-    this.gradient,
-    this.iconColor,
+    this.icon,
+    this.accent,
+    this.valueColor,
     this.compact = false,
   });
 
-  final IconData icon;
   final String label;
   final String value;
-  final Gradient? gradient;
-  final Color? iconColor;
+  final IconData? icon;
+
+  /// 仅作用于前置小图标；不传则用次要文字色。
+  final Color? accent;
+
+  /// 数值颜色。只在状态类数值（运行中 / 异常）上传入。
+  final Color? valueColor;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = iconColor ?? theme.colorScheme.primary;
-    return Container(
-      padding: EdgeInsets.all(compact ? Insets.md : Insets.lg),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.md),
-        gradient: gradient,
-        color: gradient == null
-            ? theme.colorScheme.surfaceContainer.withValues(alpha: 0.7)
-            : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: compact ? 32 : 40,
-            height: compact ? 32 : 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: (gradient != null ? Colors.white : accent)
-                  .withValues(alpha: gradient != null ? 0.22 : 0.13),
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: accent ?? muted),
+              const SizedBox(width: Insets.xs + 2),
+            ],
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: compact ? 11 : 12,
+                ),
+              ),
             ),
-            child: Icon(
-              icon,
-              size: compact ? 17 : 21,
-              color: gradient != null ? Colors.white : accent,
+          ],
+        ),
+        const SizedBox(height: Insets.xs + 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: (compact
+                    ? theme.textTheme.titleSmall
+                    : theme.textTheme.titleMedium)
+                ?.copyWith(
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+              color: valueColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          SizedBox(width: compact ? Insets.sm : Insets.md),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: (compact
-                            ? theme.textTheme.titleSmall
-                            : theme.textTheme.titleMedium)
-                        ?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: gradient != null ? Colors.white : null,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: gradient != null
-                        ? Colors.white.withValues(alpha: 0.85)
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontSize: compact ? 11 : 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/// 状态胶囊：色点 + 文本。
+/// 状态胶囊：色点 + 文字，1px 描边，无填充。
 class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
@@ -262,11 +203,13 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Insets.sm + 2,
+        vertical: 3,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
         borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -275,22 +218,21 @@ class StatusPill extends StatelessWidget {
             _PulseDot(color: color)
           else
             Container(
-              width: 7,
-              height: 7,
+              width: 6,
+              height: 6,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
           if (icon != null) ...[
             const SizedBox(width: Insets.xs),
-            Icon(icon, size: 14, color: color),
+            Icon(icon, size: 13, color: color),
           ],
-          const SizedBox(width: Insets.sm),
+          const SizedBox(width: Insets.sm - 2),
           Text(
             label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.brightness == Brightness.dark
-                  ? color
-                  : Color.alphaBlend(color.withValues(alpha: 0.85), Colors.black),
-              fontWeight: FontWeight.w600,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+              fontSize: 11.5,
             ),
           ),
         ],
@@ -318,7 +260,7 @@ class _PulseDotState extends State<_PulseDot>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
+    duration: const Duration(milliseconds: 1600),
   )..repeat(reverse: true);
 
   @override
@@ -329,24 +271,17 @@ class _PulseDotState extends State<_PulseDot>
 
   @override
   Widget build(BuildContext context) {
-    // 阴影固定不变，避免每帧重新光栅化模糊。
-    final glow = BoxShadow(
-      color: widget.color.withValues(alpha: 0.28),
-      blurRadius: 5,
-      spreadRadius: 1,
-    );
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
           final t = _controller.value;
           return Container(
-            width: 8,
-            height: 8,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: widget.color.withValues(alpha: 0.5 + 0.5 * t),
-              boxShadow: [glow],
+              color: widget.color.withValues(alpha: 0.35 + 0.65 * t),
             ),
           );
         },
@@ -355,7 +290,7 @@ class _PulseDotState extends State<_PulseDot>
   }
 }
 
-/// 空状态插画 + 描述 + 动作。
+/// 空状态：图标 + 标题 + 描述 + 动作。
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -375,50 +310,33 @@ class EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
+        constraints: const BoxConstraints(maxWidth: 340),
         child: Padding(
           padding: const EdgeInsets.all(Insets.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.16),
-                      theme.colorScheme.secondary.withValues(alpha: 0.10),
-                    ],
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  size: 34,
-                  color: theme.colorScheme.primary,
-                ),
+              Icon(
+                icon,
+                size: 28,
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
-              const SizedBox(height: Insets.xl),
+              const SizedBox(height: Insets.lg),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.titleSmall,
               ),
               if (message != null) ...[
                 const SizedBox(height: Insets.sm),
                 Text(
                   message!,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
               if (action != null) ...[
-                const SizedBox(height: Insets.xl),
+                const SizedBox(height: Insets.lg),
                 action!,
               ],
             ],
@@ -448,15 +366,20 @@ class InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(width: Insets.sm),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(top: 7, left: Insets.xs),
+              padding: const EdgeInsets.only(top: 9, left: Insets.xs),
               child: CustomPaint(
                 painter: _DottedLinePainter(
                   color: theme.colorScheme.outlineVariant,
@@ -469,10 +392,11 @@ class InfoRow extends StatelessWidget {
           Text(
             value,
             textAlign: TextAlign.right,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: valueColor,
+              color: valueColor ?? theme.colorScheme.onSurface,
               fontFamily: monospace ? 'monospace' : null,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -491,7 +415,7 @@ class _DottedLinePainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..strokeWidth = 1;
-    const dash = 3.0;
+    const dash = 2.0;
     const gap = 4.0;
     var x = 0.0;
     while (x < size.width) {
@@ -508,48 +432,49 @@ class _DottedLinePainter extends CustomPainter {
   bool shouldRepaint(_DottedLinePainter oldDelegate) => oldDelegate.color != color;
 }
 
-/// 品牌渐变主按钮（比 FilledButton 更柔和，带渐变与高光）。
-class VelaGradientButton extends StatelessWidget {
-  const VelaGradientButton({
+/// 主按钮：实心主色，无投影。
+class VelaPrimaryButton extends StatelessWidget {
+  const VelaPrimaryButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.icon,
-    this.gradient,
-    this.foregroundColor = Colors.white,
     this.expand = false,
     this.busy = false,
+    this.tone = VelaButtonTone.primary,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
-  final Gradient? gradient;
-  final Color foregroundColor;
   final bool expand;
   final bool busy;
+
+  /// [VelaButtonTone.primary] 实心主色；[VelaButtonTone.quiet] 描边。
+  final VelaButtonTone tone;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final enabled = onPressed != null && !busy;
-    final g = gradient ?? VelaColors.brandGradient;
-    final fg = foregroundColor;
+    final isPrimary = tone == VelaButtonTone.primary;
+    final fg = isPrimary ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
+
     final child = Row(
       mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (busy)
           SizedBox(
-            width: 16,
-            height: 16,
+            width: 15,
+            height: 15,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation(fg),
             ),
           )
         else if (icon != null)
-          Icon(icon, size: 19, color: fg),
+          Icon(icon, size: 18, color: fg),
         if (busy || icon != null) const SizedBox(width: Insets.sm),
         Flexible(
           child: Text(
@@ -558,7 +483,8 @@ class VelaGradientButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelLarge?.copyWith(
               color: fg,
-              fontSize: 14.5,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -566,20 +492,14 @@ class VelaGradientButton extends StatelessWidget {
     );
 
     return Opacity(
-      opacity: enabled ? 1 : 0.55,
+      opacity: enabled ? 1 : 0.45,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: g,
+          color: isPrimary ? theme.colorScheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(Radii.md),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.32),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : null,
+          border: isPrimary
+              ? null
+              : Border.all(color: theme.colorScheme.outline),
         ),
         child: Material(
           color: Colors.transparent,
@@ -588,9 +508,11 @@ class VelaGradientButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(Radii.md),
             onTap: enabled ? onPressed : null,
             child: Container(
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: Insets.xl),
-              alignment: Alignment.center,
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+              // 刻意不给 alignment：Container 一旦有 alignment 就会在
+              // 有界约束下撑满父级宽度，导致「未要求 expand 的按钮」也被拉长。
+              // 居中由 Row 的 mainAxisAlignment 负责。
               child: child,
             ),
           ),
@@ -599,6 +521,9 @@ class VelaGradientButton extends StatelessWidget {
     );
   }
 }
+
+/// 按钮基调。
+enum VelaButtonTone { primary, quiet }
 
 /// 可选卡片项（用于内核选择、DNS 预设等）。
 class ChoiceCard extends StatelessWidget {
@@ -624,50 +549,41 @@ class ChoiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: Motion.fast),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: Motion.instant),
+      curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.09)
-            : theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(Radii.lg),
+            ? theme.colorScheme.surfaceContainer
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(Radii.md),
         border: Border.all(
           color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
-          width: selected ? 1.6 : 1,
+          width: selected ? 1.4 : 1,
         ),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(Radii.lg),
+        borderRadius: BorderRadius.circular(Radii.md),
         child: InkWell(
-          borderRadius: BorderRadius.circular(Radii.lg),
+          borderRadius: BorderRadius.circular(Radii.md),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(Insets.lg),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Insets.md,
+              vertical: Insets.md,
+            ),
             child: Row(
               children: [
                 if (leading != null) ...[
                   leading!,
                   const SizedBox(width: Insets.md),
                 ] else if (icon != null) ...[
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: (selected
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant)
-                          .withValues(alpha: selected ? 0.16 : 0.10),
-                      borderRadius: BorderRadius.circular(Radii.sm),
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 20,
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: selected ? theme.colorScheme.primary : muted,
                   ),
                   const SizedBox(width: Insets.md),
                 ],
@@ -678,16 +594,14 @@ class ChoiceCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: selected ? theme.colorScheme.primary : null,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: selected ? theme.colorScheme.onSurface : null,
                         ),
                       ),
                       if (subtitle != null) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle!,
-                          style: theme.textTheme.bodySmall,
-                        ),
+                        const SizedBox(height: 2),
+                        Text(subtitle!, style: theme.textTheme.bodySmall),
                       ],
                     ],
                   ),
@@ -697,8 +611,8 @@ class ChoiceCard extends StatelessWidget {
                   trailing!,
                 ] else if (selected)
                   Icon(
-                    Icons.check_circle_rounded,
-                    size: 20,
+                    Icons.check_rounded,
+                    size: 18,
                     color: theme.colorScheme.primary,
                   ),
               ],
@@ -710,7 +624,7 @@ class ChoiceCard extends StatelessWidget {
   }
 }
 
-/// 顶部标题区（页面级大标题 + 副标题）。
+/// 顶部标题区（页面级标题 + 副标题）。
 class PageHeading extends StatelessWidget {
   const PageHeading({
     super.key,
@@ -741,12 +655,10 @@ class PageHeading extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               if (subtitle != null) ...[
-                const SizedBox(height: Insets.xs),
+                const SizedBox(height: 3),
                 Text(
                   subtitle!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: theme.textTheme.bodySmall,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

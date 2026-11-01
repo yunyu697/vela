@@ -159,9 +159,9 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.14),
-                  blurRadius: 40,
-                  offset: const Offset(0, 18),
+                  color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
@@ -177,16 +177,27 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                     focusNode: _focusNode,
                     decoration: InputDecoration(
                       hintText: '搜索命令：前往页面、启动配置、切换内核…',
-                      prefixIcon: const Icon(Icons.bolt_rounded, size: 20),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       isDense: true,
+                      // 面板里的搜索框始终是焦点，若沿用主题的 focusedBorder
+                      // 会一直挂着一圈主色描边，看起来像输入错误提示。
+                      // 这里统一去掉描边，只靠填充区分可输入区域。
                       border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(Radii.md),
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
                       fillColor: isDark
                           ? theme.colorScheme.surfaceContainerLow
-                          : theme.colorScheme.surfaceContainerLowest,
+                          : theme.colorScheme.surfaceContainer,
                     ),
                   ),
                 ),
@@ -218,9 +229,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                             final selected = i == _highlight;
                             final color = c.dangerous
                                 ? theme.colorScheme.error
-                                : (selected
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurface);
+                                : theme.colorScheme.onSurface;
                             return InkWell(
                               borderRadius: BorderRadius.circular(Radii.md),
                               onTap: () => _run(c),
@@ -235,8 +244,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: selected
-                                      ? theme.colorScheme.primary
-                                          .withValues(alpha: 0.10)
+                                      ? theme.colorScheme.surfaceContainerHigh
                                       : Colors.transparent,
                                   borderRadius:
                                       BorderRadius.circular(Radii.md),

@@ -171,12 +171,8 @@ class _RunPageState extends State<RunPage> {
   @override
   Widget build(BuildContext context) {
     final scope = AdaptiveScope.of(context);
-    final padding = EdgeInsets.fromLTRB(
-      scope.size.isCompact ? Insets.lg : Insets.xxl,
-      scope.size.isCompact ? Insets.lg : Insets.xxl,
-      scope.size.isCompact ? Insets.lg : Insets.xxl,
-      Insets.xxl,
-    );
+    final pad = scope.size.isCompact ? Insets.pageCompact : Insets.page;
+    final padding = EdgeInsets.fromLTRB(pad, pad, pad, Insets.xxl);
 
     if (_profiles.isEmpty) {
       return Column(
@@ -221,10 +217,10 @@ class _RunPageState extends State<RunPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: 380,
+                      width: 340,
                       child: SingleChildScrollView(
                         padding: EdgeInsets.fromLTRB(
-                          scope.size.isCompact ? Insets.lg : Insets.xxl,
+                          pad,
                           0,
                           Insets.lg,
                           Insets.xxl,
@@ -237,7 +233,7 @@ class _RunPageState extends State<RunPage> {
                         padding: EdgeInsets.fromLTRB(
                           Insets.lg,
                           0,
-                          scope.size.isCompact ? Insets.lg : Insets.xxl,
+                          pad,
                           Insets.xxl,
                         ),
                         child: dashboard,
@@ -264,6 +260,7 @@ class _RunPageState extends State<RunPage> {
 
   Widget _buildStatusPill(BuildContext context) {
     final status = _manager.status;
+    final brightness = Theme.of(context).brightness;
     final (color, label) = switch (status.kind) {
       CoreStatusKind.running => (VelaColors.emerald, '运行中'),
       CoreStatusKind.starting => (VelaColors.amber, '启动中'),
@@ -273,7 +270,7 @@ class _RunPageState extends State<RunPage> {
     };
     return StatusPill(
       label: label,
-      color: color,
+      color: VelaColors.resolve(color, brightness),
       pulsing: status.kind == CoreStatusKind.running,
     );
   }
@@ -285,97 +282,91 @@ class _RunPageState extends State<RunPage> {
     final active = _manager.isActive;
     final selected = _selectedProfile;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        VelaCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SectionHeader(
-                title: '控制台',
-                subtitle: '选择配置、内核并启停',
-                icon: Icons.tune_rounded,
-              ),
-              const SizedBox(height: Insets.lg),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: '配置',
-                  prefixIcon: Icon(Icons.folder_special_outlined),
-                ),
-                items: [
-                  for (final p in _profiles)
-                    DropdownMenuItem(
-                      value: p.id,
-                      child: Text(
-                        p.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: active ? null : (v) => setState(() => _selectedId = v),
-              ),
-              const SizedBox(height: Insets.lg),
-              Text('内核', style: theme.textTheme.labelLarge),
-              const SizedBox(height: Insets.sm),
-              _buildCoreSwitch(context, active),
-              const SizedBox(height: Insets.lg),
-              SizedBox(
-                width: double.infinity,
-                child: active
-                    ? OutlinedButton.icon(
-                        onPressed: _stop,
-                        icon: const Icon(Icons.stop_rounded, size: 19),
-                        label: const Text('停止'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.error,
-                          side: BorderSide(
-                            color: theme.colorScheme.error.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      )
-                    : VelaGradientButton(
-                        label: '启动内核',
-                        icon: Icons.play_arrow_rounded,
-                        expand: true,
-                        onPressed: selected == null ? null : _start,
-                      ),
-              ),
-              if (_startError != null) ...[
-                const SizedBox(height: Insets.md),
-                Container(
-                  padding: const EdgeInsets.all(Insets.md),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.error.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(Radii.md),
-                    border: Border.all(
-                      color: theme.colorScheme.error.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.error_outline_rounded,
-                          size: 17, color: theme.colorScheme.error),
-                      const SizedBox(width: Insets.sm),
-                      Expanded(
-                        child: Text(
-                          _startError!,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+    return VelaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader(
+            title: '控制台',
+            subtitle: '选择配置与内核，然后启动',
           ),
-        ),
-      ],
+          const SizedBox(height: Insets.lg),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '配置'),
+            items: [
+              for (final p in _profiles)
+                DropdownMenuItem(
+                  value: p.id,
+                  child: Text(
+                    p.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: active ? null : (v) => setState(() => _selectedId = v),
+          ),
+          const SizedBox(height: Insets.lg),
+          Text(
+            '内核',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: Insets.sm),
+          _buildCoreSwitch(context, active),
+          const SizedBox(height: Insets.lg),
+          if (active)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _stop,
+                icon: const Icon(Icons.stop_rounded, size: 18),
+                label: const Text('停止'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                  side: BorderSide(
+                    color: theme.colorScheme.error.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+            )
+          else
+            VelaPrimaryButton(
+              label: '启动内核',
+              icon: Icons.play_arrow_rounded,
+              expand: true,
+              onPressed: selected == null ? null : _start,
+            ),
+          if (_startError != null) ...[
+            const SizedBox(height: Insets.md),
+            Container(
+              padding: const EdgeInsets.all(Insets.md),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.md),
+                border: Border.all(
+                  color: theme.colorScheme.error.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline_rounded,
+                      size: 16, color: theme.colorScheme.error),
+                  const SizedBox(width: Insets.sm),
+                  Expanded(
+                    child: Text(
+                      _startError!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -385,62 +376,64 @@ class _RunPageState extends State<RunPage> {
         _selectedProfile?.coreKind ??
         CoreKind.mihomo;
 
-    Widget tile(CoreKind kind, String label, String desc, IconData icon, Color color) {
+    Widget option(CoreKind kind, String label, String hint) {
       final selected = current == kind;
       return Expanded(
-        child: Material(
-          color: selected
-              ? color.withValues(alpha: 0.12)
-              : theme.colorScheme.surfaceContainer.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(Radii.md),
-          child: InkWell(
+        child: Tooltip(
+          message: hint,
+          child: Material(
+            color: selected
+                ? theme.colorScheme.surfaceContainer
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(Radii.md),
-            onTap: () => _switchCore(kind),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: Insets.md,
-                vertical: Insets.md,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(Radii.md),
-                border: Border.all(
-                  color: selected ? color : theme.colorScheme.outlineVariant,
-                  width: selected ? 1.6 : 1,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Radii.md),
+              onTap: () => _switchCore(kind),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: Insets.md),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  border: Border.all(
+                    color: selected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant,
+                  ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Icon(icon,
-                          size: 18,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected
+                            ? theme.colorScheme.primary
+                            : Colors.transparent,
+                        border: Border.all(
                           color: selected
-                              ? color
-                              : theme.colorScheme.onSurfaceVariant),
-                      const SizedBox(width: Insets.xs),
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: selected ? color : null,
-                            fontSize: 13.5,
-                          ),
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.outline,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    desc,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: Insets.sm + 2),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w400,
+                          color: selected
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -449,13 +442,10 @@ class _RunPageState extends State<RunPage> {
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        tile(CoreKind.mihomo, 'mihomo', '协议最全', Icons.hub_outlined,
-            VelaColors.violet),
+        option(CoreKind.mihomo, 'mihomo', '协议支持最广：SSR / Hysteria v1 等全兼容'),
         const SizedBox(width: Insets.sm),
-        tile(CoreKind.singbox, 'sing-box', '性能更优', Icons.bolt_rounded,
-            VelaColors.azure),
+        option(CoreKind.singbox, 'sing-box', '新协议跟进快，性能与内存表现优秀'),
       ],
     );
   }
@@ -471,14 +461,12 @@ class _RunPageState extends State<RunPage> {
         icon: Icons.download_rounded,
         label: '实时下载',
         value: stats == null ? '—' : _fmtBps(stats.downBps),
-        gradient: VelaColors.coolGradient,
         compact: scope.size.isCompact,
       ),
       StatTile(
         icon: Icons.upload_rounded,
         label: '实时上传',
         value: stats == null ? '—' : _fmtBps(stats.upBps),
-        iconColor: VelaColors.emerald,
         compact: scope.size.isCompact,
       ),
       StatTile(
@@ -486,15 +474,13 @@ class _RunPageState extends State<RunPage> {
         label: '累计流量',
         value: stats == null
             ? '—'
-            : '${_fmtBytes(stats.totalDown)} ↓ / ${_fmtBytes(stats.totalUp)} ↑',
-        iconColor: VelaColors.amber,
+            : '${_fmtBytes(stats.totalDown)} ↓ ${_fmtBytes(stats.totalUp)} ↑',
         compact: scope.size.isCompact,
       ),
       StatTile(
         icon: Icons.alt_route_rounded,
         label: '活动连接',
         value: '${_connections.length}',
-        iconColor: VelaColors.violet,
         compact: scope.size.isCompact,
       ),
     ];
@@ -502,26 +488,27 @@ class _RunPageState extends State<RunPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(
-          title: '实时仪表盘',
-          subtitle: '流量与连接统计',
-          icon: Icons.speed_rounded,
-        ),
-        const SizedBox(height: Insets.lg),
-        LayoutBuilder(
-          builder: (context, c) {
-            final columns = c.maxWidth >= 720 ? 4 : (c.maxWidth >= 380 ? 2 : 1);
-            const gap = Insets.sm;
-            final w = (c.maxWidth - gap * (columns - 1)) / columns;
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: [
-                for (final t in statTiles)
-                  SizedBox(width: w, child: t),
-              ],
-            );
-          },
+        const SectionHeader(title: '实时仪表盘', subtitle: '流量与连接统计'),
+        const SizedBox(height: Insets.md),
+        VelaCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.lg,
+            vertical: Insets.lg,
+          ),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final columns = c.maxWidth >= 640 ? 4 : (c.maxWidth >= 320 ? 2 : 1);
+              const gap = Insets.md;
+              final w = (c.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: Insets.lg,
+                children: [
+                  for (final t in statTiles) SizedBox(width: w, child: t),
+                ],
+              );
+            },
+          ),
         ),
         const SizedBox(height: Insets.xl),
         Row(
@@ -533,9 +520,9 @@ class _RunPageState extends State<RunPage> {
               ),
             ),
             if (_manager.isActive)
-              const StatusPill(
+              StatusPill(
                 label: '实时刷新',
-                color: VelaColors.emerald,
+                color: VelaColors.resolve(VelaColors.emerald, theme.brightness),
                 pulsing: true,
               ),
           ],
@@ -545,23 +532,20 @@ class _RunPageState extends State<RunPage> {
           VelaCard(
             padding: const EdgeInsets.symmetric(
               horizontal: Insets.xl,
-              vertical: Insets.xxl,
+              vertical: Insets.xl,
             ),
             child: Column(
               children: [
                 Icon(
-                  Icons.travel_explore_rounded,
-                  size: 30,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  Icons.swap_vert_rounded,
+                  size: 24,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
                 const SizedBox(height: Insets.md),
-                Text(
-                  '暂无活动连接',
-                  style: theme.textTheme.titleSmall,
-                ),
+                Text('暂无活动连接', style: theme.textTheme.titleSmall),
                 const SizedBox(height: Insets.xs),
                 Text(
-                  '启动内核并产生流量后，这里会实时显示域名、命中规则与出入站链路。',
+                  '启动内核并产生流量后，这里会显示域名、命中规则与出入站链路。',
                   style: theme.textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),
@@ -597,30 +581,17 @@ class _ConnectionTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: Insets.lg,
-        vertical: Insets.md,
+        vertical: Insets.md - 2,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: (connection.network == 'udp'
-                      ? VelaColors.amber
-                      : VelaColors.azure)
-                  .withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(Radii.sm),
-            ),
-            child: Icon(
-              connection.network == 'udp'
-                  ? Icons.blur_on_rounded
-                  : Icons.swap_vert_rounded,
-              size: 16,
-              color: connection.network == 'udp'
-                  ? VelaColors.amber
-                  : VelaColors.azure,
-            ),
+          Icon(
+            connection.network == 'udp'
+                ? Icons.blur_on_rounded
+                : Icons.swap_vert_rounded,
+            size: 15,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: Insets.md),
           Expanded(
@@ -633,10 +604,10 @@ class _ConnectionTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   '${connection.rule.isEmpty ? '-' : connection.rule}'
                   ' · ${connection.chain.join(' → ')}'
