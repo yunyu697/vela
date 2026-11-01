@@ -172,6 +172,42 @@ class _ProfilesPageState extends State<ProfilesPage> {
     _toast('已复制为「${copy.name}」');
   }
 
+  /// 正在更新订阅的配置 id。
+  ///
+  /// 用集合而不是单个 bool：宽屏是两列网格，两个配置各自更新互不影响。
+  final Set<String> _syncing = {};
+
+  Future<void> _refreshSubscription(Profile profile) async {
+    if (_syncing.contains(profile.id)) return;
+    setState(() => _syncing.add(profile.id));
+    try {
+      final r = await _repo.refreshSubscription(profile.id);
+      if (!mounted) return;
+      // 正在跑的就是这份配置：内核读的还是旧节点，得说明白，
+      // 否则用户会以为新节点已经生效。
+      final running = CoreManager.instance.activeProfile?.id == profile.id;
+      final tail = running ? '，重启内核后生效' : '';
+      _toast(
+        r.delta == 0
+            ? '订阅已更新，仍是 ${r.after} 个节点$tail'
+            : '订阅已更新：${r.before} → ${r.after} 个节点'
+                '（${r.delta > 0 ? '+' : ''}${r.delta}）$tail',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _toast('更新失败：${_errorText(e)}');
+    } finally {
+      if (mounted) setState(() => _syncing.remove(profile.id));
+    }
+  }
+
+  /// 异常转文案：剥掉 `Exception:` / 类名前缀，只留人话。
+  static String _errorText(Object e) {
+    final s = e.toString();
+    final colon = s.indexOf(': ');
+    return colon >= 0 && colon < 40 ? s.substring(colon + 2) : s;
+  }
+
   Future<void> _toggleFavorite(Profile profile) async {
     await _repo.toggleFavorite(profile.id);
   }
@@ -599,6 +635,8 @@ class _ProfilesPageState extends State<ProfilesPage> {
                         onRename: () => _rename(visible[i]),
                         onDuplicate: () => _duplicate(visible[i]),
                         onTags: () => _editTags(visible[i]),
+                        onSync: () => _refreshSubscription(visible[i]),
+                        syncing: _syncing.contains(visible[i].id),
                         onExport: () => _export([visible[i].id]),
                         onDelete: () => _delete(visible[i]),
                       ),
@@ -634,6 +672,8 @@ class _ProfileCard extends StatelessWidget {
     required this.onRename,
     required this.onDuplicate,
     required this.onTags,
+    required this.onSync,
+    required this.syncing,
     required this.onExport,
     required this.onDelete,
   });
@@ -650,8 +690,20 @@ class _ProfileCard extends StatelessWidget {
   final VoidCallback onRename;
   final VoidCallback onDuplicate;
   final VoidCallback onTags;
+  final VoidCallback onSync;
+  final bool syncing;
   final VoidCallback onExport;
   final VoidCallback onDelete;
+
+  /// 只有「从订阅导入、地址还在、且不是原生配置」的才能更新。
+  ///
+  /// 手工导入 / 文件导入的配置没有可重拉的地址；原生配置直接使用订阅
+  /// 原文，节点列表不参与编译。菜单里都不该出现「更新订阅」——点了
+  /// 一律报错等于骗人。
+  bool get _canSync =>
+      profile.source.type == ProfileSourceType.subscription &&
+      (profile.source.url?.isNotEmpty ?? false) &&
+      !profile.isNativeConfig;
 
   @override
   Widget build(BuildContext context) {
@@ -739,15 +791,28 @@ class _ProfileCard extends StatelessWidget {
                 ),
               ),
               if (!selectMode)
-                _ProfileMenu(
-                  favorite: meta.favorite,
-                  onFavorite: onFavorite,
-                  onRename: onRename,
-                  onDuplicate: onDuplicate,
-                  onTags: onTags,
-                  onExport: onExport,
-                  onDelete: onDelete,
-                ),
+                // 更新订阅要发网络请求，快则几百毫秒、慢则几十秒。
+                // 期间把 ⋮ 换成转圈：否则用户不知道点没点上，会反复点。
+                syncing
+                    ? const Padding(
+                        padding: EdgeInsets.all(Insets.sm),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 1.8),
+                        ),
+                      )
+                    : _ProfileMenu(
+                        favorite: meta.favorite,
+                        canSync: _canSync,
+                        onFavorite: onFavorite,
+                        onRename: onRename,
+                        onDuplicate: onDuplicate,
+                        onTags: onTags,
+                        onSync: onSync,
+                        onExport: onExport,
+                        onDelete: onDelete,
+                      ),
             ],
           ),
           if (meta.tags.isNotEmpty || meta.note.isNotEmpty) ...[
@@ -815,10 +880,7 @@ class _ProfileCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    meta.useCount > 0
-                        ? '已启动 ${meta.useCount} 次'
-                            '${meta.lastUsedAt != null ? ' · ${_ago(meta.lastUsedAt!)}' : ''}'
-                        : '尚未启动过',
+                    _footerText(meta, profile),
                     style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -847,6 +909,22 @@ class _ProfileCard extends StatelessWidget {
     );
   }
 
+  /// 卡片底部那行小字。
+  ///
+  /// 订阅配置优先报「多久前更新」——节点是会过期的，用户更关心这个；
+  /// 使用次数照旧跟在后面，但窄屏折不下就省略。
+  static String _footerText(ProfileMeta meta, Profile profile) {
+    final used = meta.useCount > 0
+        ? '已启动 ${meta.useCount} 次'
+        : '尚未启动过';
+    if (profile.source.type != ProfileSourceType.subscription ||
+        profile.isNativeConfig) {
+      return used;
+    }
+    final synced = meta.syncedAt;
+    return synced == null ? '订阅 · 未更新' : '订阅 · ${_ago(synced)}更新';
+  }
+
   static String _ago(DateTime t) {
     final diff = DateTime.now().difference(t);
     if (diff.inMinutes < 1) return '刚刚';
@@ -861,19 +939,23 @@ class _ProfileCard extends StatelessWidget {
 class _ProfileMenu extends StatelessWidget {
   const _ProfileMenu({
     required this.favorite,
+    required this.canSync,
     required this.onFavorite,
     required this.onRename,
     required this.onDuplicate,
     required this.onTags,
+    required this.onSync,
     required this.onExport,
     required this.onDelete,
   });
 
   final bool favorite;
+  final bool canSync;
   final VoidCallback onFavorite;
   final VoidCallback onRename;
   final VoidCallback onDuplicate;
   final VoidCallback onTags;
+  final VoidCallback onSync;
   final VoidCallback onExport;
   final VoidCallback onDelete;
 
@@ -893,6 +975,8 @@ class _ProfileMenu extends StatelessWidget {
             onDuplicate();
           case 'tags':
             onTags();
+          case 'sync':
+            onSync();
           case 'export':
             onExport();
           case 'delete':
@@ -939,6 +1023,17 @@ class _ProfileMenu extends StatelessWidget {
             title: Text('标签与备注'),
           ),
         ),
+        // 只有订阅来的配置才有可重拉的地址，其余不显示这一项。
+        if (canSync)
+          const PopupMenuItem(
+            value: 'sync',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.sync_rounded, size: 19),
+              title: Text('更新订阅'),
+            ),
+          ),
         const PopupMenuItem(
           value: 'export',
           child: ListTile(

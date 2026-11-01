@@ -16,10 +16,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela/core/cores/core_adapter.dart';
 import 'package:vela/core/ir/profile.dart';
+import 'package:vela/core/settings/app_settings.dart';
 import 'package:vela/core/storage/kv_store.dart';
 import 'package:vela/core/storage/profile_store.dart';
 import 'package:vela/features/profiles/profiles_page.dart';
 import 'package:vela/features/run/run_page.dart';
+import 'package:vela/features/settings/settings_page.dart';
 import 'package:vela/features/wizard/wizard_controller.dart';
 import 'package:vela/features/wizard/wizard_page.dart';
 import 'package:vela/ui/adaptive.dart';
@@ -853,6 +855,71 @@ void main() {
         matchesGoldenFile('goldens/run_empty_desktop.png'),
       );
     });
+
+    // 设置页此前不存在：托盘能改的开关（系统代理 / 开机自启）在界面里
+    // 完全不可达，移动端更是连托盘都没有。
+    //
+    // 数据目录用固定串钉住：真实路径带随机临时目录名，不钉的话这张
+    // 黄金图每次跑都不一样。
+    const pinnedDir = '~/Library/Application Support/dev.boxhub.boxhub';
+
+    testWidgets('设置页 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(const SettingsPage(debugDataDir: pinnedDir)),
+        const Size(1440, 900),
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(SettingsPage),
+        matchesGoldenFile('goldens/settings_desktop.png'),
+      );
+    });
+
+    testWidgets('设置页 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(const SettingsPage(debugDataDir: pinnedDir)),
+        const Size(390, 844),
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(SettingsPage),
+        matchesGoldenFile('goldens/settings_phone.png'),
+      );
+    });
+
+    testWidgets('设置页 主题切换立即生效', (tester) async {
+      final settings = AppSettings.instance;
+      final original = settings.themeMode;
+      addTearDown(() => settings.setThemeMode(original));
+
+      await _pumpAt(
+        tester,
+        pageApp(const SettingsPage(debugDataDir: pinnedDir)),
+        const Size(390, 844),
+      );
+      await tester.tap(find.text('暗色'));
+      await tester.pump();
+      expect(settings.themeMode, ThemeMode.dark);
+      // 页面上「当前：」那行要跟着变，否则用户不知道点没点上
+      expect(find.text('当前：暗色'), findsOneWidget);
+    });
+
+    testWidgets('设置页 自动启动开关落盘', (tester) async {
+      final settings = AppSettings.instance;
+      addTearDown(() => settings.setAutoStartLastProfile(false));
+
+      await _pumpAt(
+        tester,
+        pageApp(const SettingsPage(debugDataDir: pinnedDir)),
+        const Size(390, 844),
+      );
+      expect(find.text('启动时自动启动上次配置'), findsOneWidget);
+      await tester.tap(find.byType(Switch).first);
+      await tester.pump();
+      expect(settings.autoStartLastProfile, isTrue);
+    });
   });
 
   // ------------------------------------------------------------ 暗色模式
@@ -898,6 +965,18 @@ void main() {
           tester,
           pageApp(
             const WizardPage(initialProfileName: '我的配置'),
+            brightness: Brightness.dark,
+          ),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('设置页（暗色）@ $name', (tester) async {
+        await _pumpAt(
+          tester,
+          pageApp(
+            const SettingsPage(debugDataDir: '~/Library/Application Support/dev.boxhub.boxhub'),
             brightness: Brightness.dark,
           ),
           size,
@@ -992,6 +1071,25 @@ void main() {
       await expectLater(
         find.byType(WizardPage),
         matchesGoldenFile('goldens/dark_wizard_desktop.png'),
+      );
+    });
+
+    // 设置页全是开关与分段控件，暗色下最容易出现「轨道和背景同色，
+    // 看不出开还是关」。
+    testWidgets('暗色黄金图 设置页 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(
+          const SettingsPage(
+            debugDataDir: '~/Library/Application Support/dev.boxhub.boxhub',
+          ),
+          brightness: Brightness.dark,
+        ),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(SettingsPage),
+        matchesGoldenFile('goldens/dark_settings_desktop.png'),
       );
     });
   });

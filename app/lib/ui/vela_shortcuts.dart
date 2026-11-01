@@ -6,7 +6,7 @@
 ///
 /// 快捷键 → 总线回调（由 VelaShell 注册）：
 ///  - ⌘K / Ctrl+K：命令面板
-///  - ⌘1 / ⌘2 / ⌘3：前往概览 / 配置 / 运行
+///  - ⌘1 / ⌘2 / ⌘3 / ⌘4：前往概览 / 配置 / 运行 / 设置
 ///  - ⌘R：一键启停
 ///  - ⌘⇧D：切换主题模式
 library;
@@ -61,6 +61,7 @@ class VelaShortcutLayer extends StatelessWidget {
         _mod(LogicalKeyboardKey.digit1): const _GoTabIntent(0),
         _mod(LogicalKeyboardKey.digit2): const _GoTabIntent(1),
         _mod(LogicalKeyboardKey.digit3): const _GoTabIntent(2),
+        _mod(LogicalKeyboardKey.digit4): const _GoTabIntent(3),
         _mod(LogicalKeyboardKey.keyR): const _ToggleCoreIntent(),
         _modShift(LogicalKeyboardKey.keyD): const _ToggleThemeIntent(),
       },

@@ -45,7 +45,7 @@ class TrayItem {
       };
 }
 
-class DesktopIntegrations {
+class DesktopIntegrations extends ChangeNotifier {
   DesktopIntegrations._();
   static final DesktopIntegrations instance = DesktopIntegrations._();
 
@@ -146,10 +146,7 @@ class DesktopIntegrations {
       case 'toggle':
       case 'sysproxy':
         if (id == 'sysproxy') {
-          _sysProxyPref = !_sysProxyPref;
-          await _prefs?.setString(
-              _keySysProxy, _sysProxyPref ? '1' : '0');
-          await _syncSystemProxy();
+          await setSysProxyPref(!_sysProxyPref);
         } else {
           _busy = true;
           await _updateTray();
@@ -161,12 +158,7 @@ class DesktopIntegrations {
         }
         await refresh();
       case 'autostart':
-        _autostartPref = !_autostartPref;
-        final ok = await setAutostart(_autostartPref);
-        if (!ok) _autostartPref = !_autostartPref; // 失败回滚
-        await _prefs?.setString(
-            _keyAutostart, _autostartPref ? '1' : '0');
-        await _updateTray();
+        await setAutostartPref(!_autostartPref);
       case 'show':
         // macOS 侧在原生层已激活窗口；Windows 托盘实现后走 AppWindow
         break;
@@ -177,6 +169,32 @@ class DesktopIntegrations {
         } catch (_) {}
         exit(0);
     }
+  }
+
+  // ------------------------------------------------------------ 用户开关
+  //
+  // 托盘菜单与设置页共用这两个入口：两边各自改内存 + 落盘的话，
+  // 状态迟早会分叉（托盘点了「系统代理」，设置页还显示关着）。
+
+  /// 开关「内核运行时把系统代理指向 mixed 端口」。
+  Future<void> setSysProxyPref(bool enabled) async {
+    if (_sysProxyPref == enabled) return;
+    _sysProxyPref = enabled;
+    await _prefs?.setString(_keySysProxy, enabled ? '1' : '0');
+    await _syncSystemProxy();
+    await _updateTray();
+    notifyListeners();
+  }
+
+  /// 开关开机自启（真正的系统注册失败时回滚开关状态）。
+  Future<void> setAutostartPref(bool enabled) async {
+    if (_autostartPref == enabled) return;
+    _autostartPref = enabled;
+    final ok = await setAutostart(enabled);
+    if (!ok) _autostartPref = !enabled; // 系统侧没成功，界面不能显示成功
+    await _prefs?.setString(_keyAutostart, _autostartPref ? '1' : '0');
+    await _updateTray();
+    notifyListeners();
   }
 
   void _onCoreChanged() {

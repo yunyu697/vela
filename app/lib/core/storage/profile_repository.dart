@@ -15,6 +15,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../ir/profile.dart';
+import '../subscribe/subscription_fetcher.dart';
 import 'kv_store.dart';
 import 'profile_store.dart';
 import 'secure_vault.dart';
@@ -34,6 +35,7 @@ class ProfileMeta {
     DateTime? createdAt,
     this.lastUsedAt,
     this.useCount = 0,
+    this.syncedAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   final String profileId;
@@ -57,6 +59,12 @@ class ProfileMeta {
   final DateTime? lastUsedAt;
   final int useCount;
 
+  /// 上次从订阅拉取节点的时刻（非订阅配置恒为 null）。
+  ///
+  /// 放在元信息而不是 [Profile] 里：它属于「管理」维度，不该进编译产物，
+  /// 也不该在跨内核切换时被复制。
+  final DateTime? syncedAt;
+
   /// 展示用的名称。
   String displayName(Profile profile) =>
       nickname.trim().isEmpty ? profile.name : nickname.trim();
@@ -69,6 +77,7 @@ class ProfileMeta {
     int? colorIndex,
     DateTime? lastUsedAt,
     int? useCount,
+    DateTime? syncedAt,
   }) =>
       ProfileMeta(
         profileId: profileId,
@@ -80,6 +89,7 @@ class ProfileMeta {
         createdAt: createdAt,
         lastUsedAt: lastUsedAt ?? this.lastUsedAt,
         useCount: useCount ?? this.useCount,
+        syncedAt: syncedAt ?? this.syncedAt,
       );
 
   Map<String, Object?> toJson() => {
@@ -91,6 +101,7 @@ class ProfileMeta {
         'createdAt': createdAt.toIso8601String(),
         'lastUsedAt': lastUsedAt?.toIso8601String(),
         'useCount': useCount,
+        'syncedAt': syncedAt?.toIso8601String(),
       };
 
   factory ProfileMeta.fromJson(String id, Map<Object?, Object?> json) =>
@@ -104,6 +115,9 @@ class ProfileMeta {
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
         lastUsedAt: DateTime.tryParse(json['lastUsedAt'] as String? ?? ''),
         useCount: json['useCount'] as int? ?? 0,
+        // 旧版本没有这个字段：解析失败即视为「从未同步」，
+        // 界面上显示成「未更新」，不会崩也不会误报「刚刚更新」。
+        syncedAt: DateTime.tryParse(json['syncedAt'] as String? ?? ''),
       );
 }
 
@@ -377,6 +391,109 @@ class ProfileRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ------------------------------------------------------------ 订阅同步
+
+  /// 仅测试用：替换订阅抓取实现，避免单测真的发网络请求。
+  @visibleForTesting
+  Future<SubscriptionFetchResult> Function(String url, CoreKind core)?
+      debugFetcher;
+
+  /// 重新拉取订阅并用最新节点替换当前配置的节点。
+  ///
+  /// 保留配置本身的一切（id / 名称 / 规则 / DNS / 入站），只换节点；
+  /// 分组成员按新节点重新绑定（见 [rebindGroupMembers]）。
+  /// 非订阅来源、地址为空、订阅返回空节点都直接抛错——静默「更新成功」
+  /// 但节点数变成 0 比报错更糟。
+  Future<SubscriptionRefreshResult> refreshSubscription(
+    String profileId,
+  ) async {
+    final p = _findProfile(profileId);
+    if (p == null) throw StateError('配置不存在：$profileId');
+    final url = p.source.url;
+    if (p.source.type != ProfileSourceType.subscription ||
+        url == null ||
+        url.isEmpty) {
+      throw const FormatException('这个配置不是从订阅导入的，没有可更新的地址');
+    }
+    // 原生配置模式下编译器直接吐出订阅原文，节点列表根本不参与编译，
+    // 在这里「更新节点」只是改了张用不上的表。
+    if (p.isNativeConfig) {
+      throw const FormatException('这份配置是原生配置，节点不参与编译，无需更新');
+    }
+
+    final fetcher = debugFetcher;
+    final result = fetcher != null
+        ? await fetcher(url, p.coreKind)
+        : await SubscriptionFetcher().fetch(url, forCore: p.coreKind);
+    if (result.nodes.isEmpty) {
+      throw const FormatException('订阅没有返回任何可用节点');
+    }
+
+    await saveProfile(p.copyWith(
+      nodes: result.nodes,
+      groups: rebindGroupMembers(p.groups, result.nodes),
+    ));
+    _metas[profileId] = metaOf(profileId).copyWith(syncedAt: DateTime.now());
+    await _persistMetas();
+    notifyListeners();
+
+    return SubscriptionRefreshResult(
+      before: p.nodes.length,
+      after: result.nodes.length,
+      info: result.info,
+    );
+  }
+
+  /// 把分组成员重新挂到一批新节点上。
+  ///
+  /// 节点 id 由「协议://服务器:端口/名称」派生，节点没变则 id 不变；
+  /// 但订阅删掉或改名节点后，旧成员的 id 会悬空。编译器对悬空成员是
+  /// **静默跳过**的，于是整个分组可能变成 `proxies: []`，内核加载时
+  /// 直接拒绝启动。这里提前把悬空成员剔掉，`region:` 过滤器与其他分组
+  /// 的引用原样保留。
+  ///
+  /// 若某个分组一个有效节点都不剩（订阅整批换了节点），退化为「全部
+  /// 节点」——留一个空分组比给个兜底更糟：规则指过去等于没有出口。
+  static List<ProxyGroup> rebindGroupMembers(
+    List<ProxyGroup> groups,
+    List<ProxyNode> nodes,
+  ) {
+    final nodeIds = {for (final n in nodes) n.id};
+    final groupIds = {for (final g in groups) g.id};
+    final allNodeIds = [for (final n in nodes) n.id];
+
+    // 成员是否真能解析出至少一个节点。
+    bool resolves(String m) {
+      if (m.startsWith('region:')) {
+        final kw = m.substring('region:'.length);
+        return nodes.any((n) => n.name.contains(kw));
+      }
+      return nodeIds.contains(m);
+    }
+
+    return [
+      for (final g in groups)
+        () {
+          final kept = [
+            for (final m in g.members)
+              if (m.startsWith('region:') ||
+                  groupIds.contains(m) ||
+                  nodeIds.contains(m))
+                m,
+          ];
+          final hasNode = kept.any(resolves);
+          return ProxyGroup(
+            id: g.id,
+            name: g.name,
+            type: g.type,
+            members: hasNode ? kept : [...kept, ...allNodeIds],
+            url: g.url,
+            intervalSeconds: g.intervalSeconds,
+          );
+        }(),
+    ];
+  }
+
   // ------------------------------------------------------- 导入 / 导出
 
   /// 导出单个配置为 JSON 字符串。
@@ -526,4 +643,20 @@ class ProfileRepository extends ChangeNotifier {
       ),
     );
   }
+}
+
+/// 一次订阅更新的结果：更新前后节点数 + 订阅方返回的流量信息。
+class SubscriptionRefreshResult {
+  const SubscriptionRefreshResult({
+    required this.before,
+    required this.after,
+    this.info,
+  });
+
+  final int before;
+  final int after;
+  final SubscriptionUserInfo? info;
+
+  /// 节点数变化量（可为负）。
+  int get delta => after - before;
 }

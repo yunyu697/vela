@@ -10,9 +10,11 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../core/cores/core_adapter.dart';
 import '../core/ir/profile.dart';
 import '../core/platform/desktop_integrations.dart';
 import '../core/settings/app_settings.dart';
+import '../core/storage/kv_store.dart';
 import '../core/storage/profile_repository.dart';
 import '../features/run/core_manager.dart';
 import '../features/run/core_quick_actions.dart';
@@ -24,6 +26,7 @@ import '../ui/vela_shortcuts.dart';
 import '../features/home/home_page.dart';
 import '../features/profiles/profiles_page.dart';
 import '../features/run/run_page.dart';
+import '../features/settings/settings_page.dart';
 import '../features/wizard/wizard_page.dart';
 
 class VelaShell extends StatefulWidget {
@@ -56,12 +59,18 @@ class _VelaShellState extends State<VelaShell> {
       icon: Icons.play_circle_outline_rounded,
       selectedIcon: Icons.play_circle_rounded,
     ),
+    AdaptiveDestination(
+      label: '设置',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings_rounded,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
-    _repo.init();
+    // 配置载入是「自动启动」与命令面板的共同前提，先等它就绪
+    _repo.init().then((_) => _maybeAutoStart());
     final bus = VelaShortcutBus.instance;
     bus.onGoTab = _select;
     bus.onOpenPalette = _openPalette;
@@ -70,6 +79,36 @@ class _VelaShellState extends State<VelaShell> {
     // 桌面端系统集成（托盘 / 系统代理 / 开机自启）。fire-and-forget：
     // 初始化失败不影响主界面。
     DesktopIntegrations.instance.init().catchError((_) {});
+  }
+
+  /// 「启动时自动启动上次配置」。
+  ///
+  /// 只在用户主动打开这个开关后才跑；失败不弹模态框（启动瞬间弹窗打断
+  /// 比不启动更烦），改用底部提示条说明原因。
+  Future<void> _maybeAutoStart() async {
+    if (!AppSettings.instance.autoStartLastProfile) return;
+    final manager = CoreManager.instance;
+    if (manager.isActive) return;
+    final profiles = _repo.profiles;
+    if (profiles.isEmpty) return;
+
+    Profile? last;
+    DateTime? best;
+    for (final p in profiles) {
+      final t = _repo.metaOf(p.id).lastUsedAt;
+      if (t != null && (best == null || t.isAfter(best))) {
+        best = t;
+        last = p;
+      }
+    }
+    final target = last ?? profiles.first;
+    try {
+      await manager.start(target, runDir: await AppPaths.supportDir());
+      await _repo.markUsed(target.id);
+    } catch (e) {
+      if (!mounted) return;
+      _toast('自动启动失败：${e is CoreStartException ? e.message : e}');
+    }
   }
 
   @override
@@ -158,6 +197,13 @@ class _VelaShellState extends State<VelaShell> {
         subtitle: '实时流量与连接监控',
         shortcut: '⌘3',
         onRun: () => _select(2),
+      ),
+      VelaCommand(
+        title: '前往设置',
+        icon: Icons.settings_outlined,
+        subtitle: '外观、启动行为与数据位置',
+        shortcut: '⌘4',
+        onRun: () => _select(3),
       ),
       VelaCommand(
         title: '新建配置（向导）',
@@ -259,6 +305,7 @@ class _VelaShellState extends State<VelaShell> {
               ),
               ProfilesPage(onOpenRun: () => _select(2)),
               const RunPage(),
+              const SettingsPage(),
             ],
           ),
         );

@@ -42,6 +42,7 @@ class AppSettings extends ChangeNotifier {
   static final AppSettings instance = AppSettings._();
 
   static const _keyThemeMode = 'boxhub.themeMode';
+  static const _keyAutoStart = 'boxhub.autoStartLastProfile';
 
   /// 默认跟随系统。
   ///
@@ -52,9 +53,16 @@ class AppSettings extends ChangeNotifier {
 
   KvStore? _kv;
   ThemeMode _themeMode = defaultThemeMode;
+  bool _autoStartLastProfile = false;
   bool _ready = false;
 
   ThemeMode get themeMode => _themeMode;
+
+  /// 启动应用后自动启动上次使用的配置。
+  ///
+  /// 默认关：启动内核可能弹系统授权（macOS 需要安装 helper），不该在
+  /// 用户没要求的时候自己弹出来。
+  bool get autoStartLastProfile => _autoStartLastProfile;
 
   /// 是否已从磁盘载入（未载入时用默认值，不阻塞首帧）。
   bool get isReady => _ready;
@@ -66,6 +74,7 @@ class AppSettings extends ChangeNotifier {
       final kv = await KvStore.open('${await AppPaths.supportDir()}/settings.json');
       _kv = kv;
       _themeMode = _parseThemeMode(kv.getString(_keyThemeMode));
+      _autoStartLastProfile = kv.getString(_keyAutoStart) == '1';
     } catch (_) {
       // 存储不可用时保持默认值：设置项失败不该阻塞启动
     }
@@ -88,11 +97,24 @@ class AppSettings extends ChangeNotifier {
   /// 循环切换到下一个模式（供侧栏按钮 / 快捷键使用）。
   Future<void> cycleThemeMode() => setThemeMode(_themeMode.next);
 
+  /// 开关「启动时自动启动上次配置」并落盘。
+  Future<void> setAutoStartLastProfile(bool enabled) async {
+    if (_autoStartLastProfile == enabled) return;
+    _autoStartLastProfile = enabled;
+    notifyListeners();
+    try {
+      await _kv?.setString(_keyAutoStart, enabled ? '1' : '0');
+    } catch (_) {
+      // 忽略落盘失败
+    }
+  }
+
   /// 仅供测试：重置内存状态。
   @visibleForTesting
   void resetForTest() {
     _kv = null;
     _themeMode = defaultThemeMode;
+    _autoStartLastProfile = false;
     _ready = false;
   }
 
