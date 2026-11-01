@@ -20,10 +20,21 @@ import '../../ui/widgets.dart';
 import 'core_manager.dart';
 
 class RunPage extends StatefulWidget {
-  const RunPage({super.key, this.initialProfileId});
+  const RunPage({
+    super.key,
+    this.initialProfileId,
+    @visibleForTesting this.debugConnections,
+  });
 
   /// 从向导「完成」跳转时预选的 Profile。
   final String? initialProfileId;
+
+  /// 仅测试用：预置连接表。
+  ///
+  /// 连接数据要靠真实内核跑起来才有，黄金图否则只能截到空状态，
+  /// 「窄屏下连接行的密度与截断」这类排版问题就永远没人看得见。
+  @visibleForTesting
+  final List<ConnectionInfo>? debugConnections;
 
   @override
   State<RunPage> createState() => _RunPageState();
@@ -46,6 +57,7 @@ class _RunPageState extends State<RunPage> {
   void initState() {
     super.initState();
     _selectedId = widget.initialProfileId;
+    _connections = widget.debugConnections ?? const [];
     _manager.addListener(_onCoreChanged);
     _repo.addListener(_onRepoChanged);
     _repo.init().then((_) => _load());
@@ -578,48 +590,68 @@ class _ConnectionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Insets.lg,
-        vertical: Insets.md - 2,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            connection.network == 'udp'
-                ? Icons.blur_on_rounded
-                : Icons.swap_vert_rounded,
-            size: 15,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: Insets.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final chain =
+        '${connection.rule.isEmpty ? '-' : connection.rule}'
+        ' · ${connection.chain.join(' → ')}';
+
+    return Tooltip(
+      // 链路被省略号截断时还能看到完整值（桌面端悬停）。
+      message: '${connection.destination}\n$chain',
+      waitDuration: const Duration(milliseconds: 600),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.lg,
+          vertical: Insets.md - 2,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    connection.destination,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    chain,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                      color: muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: Insets.md),
+            // 流量单独成列右对齐：此前它接在链路后面，宽屏下埋在长句
+            // 末尾、窄屏下必然折行，两边的数字都对不齐也没法扫。
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  connection.destination,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                _TrafficText(
+                  icon: '↑',
+                  value: _fmtBytes(connection.upload),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  '${connection.rule.isEmpty ? '-' : connection.rule}'
-                  ' · ${connection.chain.join(' → ')}'
-                  ' · ↑${_fmtBytes(connection.upload)} ↓${_fmtBytes(connection.download)}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                _TrafficText(
+                  icon: '↓',
+                  value: _fmtBytes(connection.download),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -628,6 +660,27 @@ class _ConnectionTile extends StatelessWidget {
     if (bytes >= 1 << 30) return '${(bytes / (1 << 30)).toStringAsFixed(1)}GB';
     if (bytes >= 1 << 20) return '${(bytes / (1 << 20)).toStringAsFixed(0)}MB';
     return '${(bytes / (1 << 10)).toStringAsFixed(0)}KB';
+  }
+}
+
+/// 连接行右侧的「↑ 128KB」小字。等宽数字保证上下两行右边缘对齐。
+class _TrafficText extends StatelessWidget {
+  const _TrafficText({required this.icon, required this.value});
+
+  final String icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      '$icon $value',
+      style: theme.textTheme.bodySmall?.copyWith(
+        fontSize: 11,
+        color: theme.colorScheme.onSurfaceVariant,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
   }
 }
 

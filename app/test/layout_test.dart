@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vela/core/cores/core_adapter.dart';
 import 'package:vela/core/ir/profile.dart';
 import 'package:vela/core/storage/kv_store.dart';
 import 'package:vela/core/storage/profile_store.dart';
@@ -230,6 +231,58 @@ String _ssLink(String name, String host, int port) {
   final cred = base64.encode(utf8.encode('aes-256-gcm:vela-demo'));
   return 'ss://$cred@$host:$port#${Uri.encodeComponent(name)}';
 }
+
+/// 一组典型连接：长域名、多跳出口链、UDP、零流量条目各一。
+///
+/// 故意不用 emoji 节点名——测试字体没有 emoji，会渲染成豆腐块，
+/// 反而看不清真实的排版。规则名取真实形态（规则集 / 匹配器），
+/// 不要用 'Proxy'，否则会和链路首项重复、看不出这是两段信息。
+final _sampleConnections = <ConnectionInfo>[
+  ConnectionInfo(
+    id: 'c1',
+    network: 'tcp',
+    source: '127.0.0.1:52131',
+    destination: 'rr1---sn-npoe7nsl.googlevideo.com:443',
+    rule: 'GlobalMedia',
+    chain: const ['Proxy', 'HK-IEPL-01'],
+    upload: 128 * 1024,
+    download: 4 * 1024 * 1024,
+    start: DateTime(2026, 11, 1, 19, 20),
+  ),
+  ConnectionInfo(
+    id: 'c2',
+    network: 'tcp',
+    source: '127.0.0.1:52144',
+    destination: 'api.github.com:443',
+    rule: 'Private',
+    chain: const ['DIRECT'],
+    upload: 3 * 1024,
+    download: 42 * 1024,
+    start: DateTime(2026, 11, 1, 19, 21),
+  ),
+  ConnectionInfo(
+    id: 'c3',
+    network: 'udp',
+    source: '127.0.0.1:52150',
+    destination: '8.8.8.8:53',
+    rule: 'DNS',
+    chain: const ['Proxy', 'JP-Tokyo-Relay', 'HK-IEPL-01'],
+    upload: 1024,
+    download: 2048,
+    start: DateTime(2026, 11, 1, 19, 22),
+  ),
+  ConnectionInfo(
+    id: 'c4',
+    network: 'tcp',
+    source: '127.0.0.1:52160',
+    destination: 'cdn.jsdelivr.net:443',
+    rule: 'Apple',
+    chain: const ['Proxy', 'SG-Direct-01'],
+    upload: 0,
+    download: 0,
+    start: DateTime(2026, 11, 1, 19, 23),
+  ),
+];
 
 /// 把样例配置写入临时数据目录（模拟用户已有配置的状态）。
 Future<void> _seedSampleProfiles(Directory dir) async {
@@ -576,6 +629,33 @@ void main() {
       await expectLater(
         find.byType(RunPage),
         matchesGoldenFile('goldens/run_phone.png'),
+      );
+    });
+
+    // 连接表要靠真实内核跑起来才有数据，此前黄金图只能截到空状态。
+    // 这里注入一组典型连接（含超长域名、多跳出口链、UDP），
+    // 覆盖「窄屏下连接行是否挤成一团 / 域名被截断后还剩什么」。
+    testWidgets('运行页 连接列表 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debugConnections: _sampleConnections)),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/run_connections_desktop.png'),
+      );
+    });
+
+    testWidgets('运行页 连接列表 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debugConnections: _sampleConnections)),
+        const Size(390, 844),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/run_connections_phone.png'),
       );
     });
 

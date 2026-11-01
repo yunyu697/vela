@@ -755,6 +755,7 @@ class WizardPageState extends State<WizardPage> {
     for (final n in nodes) {
       byProtocol[n.protocol] = (byProtocol[n.protocol] ?? 0) + 1;
     }
+    final protocols = byProtocol.entries.toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -764,22 +765,48 @@ class WizardPageState extends State<WizardPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: Insets.sm,
-                      runSpacing: Insets.sm,
-                      children: [
-                        for (final e in byProtocol.entries)
-                          Chip(
-                            label: Text('${e.key.name} · ${e.value}'),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                      ],
+              // 协议构成：一行小字。
+              // 原先每个协议一枚 M3 Chip，胶囊自带描边 + 浅底，三四个并排
+              // 就是一条带框的色带；这里只需要「有哪几种、各几个」，
+              // 一行等宽小字足够，且不会把卡片顶部撑高。
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '协议构成   ',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11.5,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                    for (var i = 0; i < protocols.length; i++) ...[
+                      if (i > 0)
+                        TextSpan(
+                          text: '   ·   ',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 11.5,
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      TextSpan(
+                        text: protocols[i].key.name,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurface,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      TextSpan(
+                        text: ' ${protocols[i].value}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: Insets.lg),
               Divider(color: theme.colorScheme.outlineVariant),
@@ -976,12 +1003,12 @@ class WizardPageState extends State<WizardPage> {
               InfoRow(label: '规则', value: '${result.profile.rules.length}'),
               InfoRow(
                 label: 'DNS',
-                value: result.profile.dns.mode.name,
+                value: result.profile.dns.mode.label,
                 monospace: true,
               ),
               InfoRow(
                 label: '入站',
-                value: result.profile.inbound.mode.name,
+                value: result.profile.inbound.mode.label,
                 monospace: true,
               ),
             ],

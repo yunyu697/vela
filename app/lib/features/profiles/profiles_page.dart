@@ -793,7 +793,7 @@ class _ProfileCard extends StatelessWidget {
               Expanded(
                 child: StatTile(
                   label: 'DNS',
-                  value: profile.dns.mode.name,
+                  value: profile.dns.mode.label,
                   compact: true,
                 ),
               ),

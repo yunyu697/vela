@@ -180,7 +180,19 @@ class RuleEntry {
       );
 }
 
-enum DnsMode { fakeIp, redirHost, plain }
+/// DNS 接管方式。
+///
+/// [label] 是给人看的形式（`fake-ip` 而非 Dart 的 `fakeIp`）；序列化仍走
+/// [name]，不要拿 [label] 写进配置文件。
+enum DnsMode {
+  fakeIp('fake-ip'),
+  redirHost('redir-host'),
+  plain('系统 DNS');
+
+  const DnsMode(this.label);
+
+  final String label;
+}
 
 class DnsConfig {
   const DnsConfig({
@@ -254,7 +266,16 @@ class DnsConfig {
       );
 }
 
-enum AccessMode { tun, systemProxy, mixed }
+/// 入站模式。[label] 是给人看的形式，序列化仍走 [name]。
+enum AccessMode {
+  tun('TUN 模式'),
+  systemProxy('系统代理'),
+  mixed('混合端口');
+
+  const AccessMode(this.label);
+
+  final String label;
+}
 
 class InboundConfig {
   const InboundConfig({
