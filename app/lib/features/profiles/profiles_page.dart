@@ -966,22 +966,35 @@ class _TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Insets.sm,
-        vertical: 3,
+        vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        // 只留描边 + 彩色文字：标签是二级信息，填充色块一多，
+        // 卡片顶部就会形成一条彩色噪点带。
+        borderRadius: BorderRadius.circular(Radii.sm),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: Insets.xs + 1),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

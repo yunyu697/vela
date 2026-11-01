@@ -8,6 +8,7 @@
 /// 同时产出黄金图（`flutter test --update-goldens`）用于人工核对视觉效果。
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -224,6 +225,12 @@ Profile _sampleSingboxProfile() => Profile(
       ],
     );
 
+/// 生成一条 ss 分享链接（SIP002）。用于让向导进入「有节点」的真实状态。
+String _ssLink(String name, String host, int port) {
+  final cred = base64.encode(utf8.encode('aes-256-gcm:vela-demo'));
+  return 'ss://$cred@$host:$port#${Uri.encodeComponent(name)}';
+}
+
 /// 把样例配置写入临时数据目录（模拟用户已有配置的状态）。
 Future<void> _seedSampleProfiles(Directory dir) async {
   final kv = await KvStore.open('${dir.path}/profiles.json');
@@ -428,6 +435,69 @@ void main() {
       await expectLater(
         find.byType(WizardPage),
         matchesGoldenFile('goldens/wizard_phone.png'),
+      );
+    });
+
+    // 向导只截第 1 步的话，「四段来源选择器在手机宽度下是否折行」
+    // 「规则列表的选中条纹」「检查页的七行摘要 + 配置预览」
+    // 这三类最容易崩的排版都覆盖不到，所以按步骤各补一张。
+    Future<void> wizardAt(WidgetTester tester, WizardStep step, Size size,
+        {bool withNodes = false}) async {
+      await _pumpAt(
+        tester,
+        pageApp(const WizardPage(initialProfileName: '我的配置')),
+        size,
+      );
+      final state = tester.state<WizardPageState>(find.byType(WizardPage));
+      if (withNodes) {
+        state.controller.importLinksText([
+          _ssLink('🇭🇰 香港 IEPL 01', 'hk01.example.com', 443),
+          _ssLink('🇯🇵 东京 中转 01', 'jp01.example.com', 8443),
+          _ssLink('🇸🇬 新加坡 直连 01', 'sg01.example.com', 8388),
+        ].join('\n'));
+      }
+      for (var i = 0; i < step.index; i++) {
+        state.controller.next();
+        for (var k = 0; k < 6; k++) {
+          await tester.pump(const Duration(milliseconds: 80));
+        }
+      }
+    }
+
+    testWidgets('向导 来源步骤 桌面', (tester) async {
+      await wizardAt(tester, WizardStep.source, const Size(1440, 900));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_source_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 来源步骤 手机', (tester) async {
+      await wizardAt(tester, WizardStep.source, const Size(390, 844));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_source_phone.png'),
+      );
+    });
+
+    testWidgets('向导 规则步骤 桌面', (tester) async {
+      await wizardAt(tester, WizardStep.rules, const Size(1440, 900));
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_rules_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 检查步骤 桌面', (tester) async {
+      await wizardAt(
+        tester,
+        WizardStep.review,
+        const Size(1440, 900),
+        withNodes: true,
+      );
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_review_desktop.png'),
       );
     });
 

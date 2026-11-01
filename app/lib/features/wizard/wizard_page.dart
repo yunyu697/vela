@@ -482,6 +482,26 @@ class WizardPageState extends State<WizardPage> {
   }
 
   Widget _buildSourceStep(BuildContext context, AdaptiveScope scope) {
+    final compact = scope.size.isCompact;
+    final segmented = SegmentedButton<SourceKind>(
+      // 标签保持短词：四个分段在手机宽度（390dp）下每段只剩
+      // 约 39dp 文字空间，「分享链接」会折成两行把分段撑高。
+      // 完整语义由下方输入框的 labelText 承担。
+      //
+      // showSelectedIcon 必须关掉：M3 默认在选中段左侧插一个对勾，
+      // 手机宽度下正好把「订阅」挤成「订 / 阅」两行。
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(value: SourceKind.subscription, label: Text('订阅')),
+        ButtonSegment(value: SourceKind.links, label: Text('链接')),
+        ButtonSegment(value: SourceKind.manual, label: Text('手动')),
+        ButtonSegment(value: SourceKind.file, label: Text('文件')),
+      ],
+      selected: {_controller.sourceKind},
+      onSelectionChanged: (s) =>
+          _controller.setSource(s.first, _subUrlCtrl.text),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -490,20 +510,15 @@ class WizardPageState extends State<WizardPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SegmentedButton<SourceKind>(
-                // 标签保持短词：四个分段在手机宽度（390dp）下每段只剩
-                // 约 39dp 文字空间，「分享链接」会折成两行把分段撑高。
-                // 完整语义由下方输入框的 labelText 承担。
-                segments: const [
-                  ButtonSegment(value: SourceKind.subscription, label: Text('订阅')),
-                  ButtonSegment(value: SourceKind.links, label: Text('链接')),
-                  ButtonSegment(value: SourceKind.manual, label: Text('手动')),
-                  ButtonSegment(value: SourceKind.file, label: Text('文件')),
-                ],
-                selected: {_controller.sourceKind},
-                onSelectionChanged: (s) =>
-                    _controller.setSource(s.first, _subUrlCtrl.text),
-              ),
+              // 宽屏下不拉满：四个短标签铺满 540dp 会留下大片空白，
+              // 也让「分段选择」看起来像导航栏。手机宽度仍然铺满。
+              if (compact)
+                segmented
+              else
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IntrinsicWidth(child: segmented),
+                ),
               const SizedBox(height: Insets.lg),
               AnimatedSize(
                 duration: const Duration(milliseconds: Motion.normal),
@@ -525,6 +540,29 @@ class WizardPageState extends State<WizardPage> {
     );
   }
 
+  /// 步骤内的主行动按钮。
+  ///
+  /// 手机铺满（拇指可达、目标大），宽屏收成内容宽度并左对齐——540dp 宽的
+  /// 实心按钮在桌面上是一块过重的色块。
+  Widget _stepAction(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    VoidCallback? onPressed,
+    bool busy = false,
+  }) {
+    final button = VelaPrimaryButton(
+      label: label,
+      icon: icon,
+      busy: busy,
+      expand: AdaptiveScope.of(context).size.isCompact,
+      onPressed: onPressed,
+    );
+    return AdaptiveScope.of(context).size.isCompact
+        ? button
+        : Align(alignment: Alignment.centerLeft, child: button);
+  }
+
   Widget _buildSubscriptionInput(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -540,10 +578,10 @@ class WizardPageState extends State<WizardPage> {
           onChanged: (v) => _controller.setSource(SourceKind.subscription, v),
         ),
         const SizedBox(height: Insets.md),
-        VelaPrimaryButton(
+        _stepAction(
+          context,
           label: '拉取节点',
           icon: Icons.cloud_download_outlined,
-          expand: true,
           busy: _controller.fetching,
           onPressed: _controller.fetching ? null : _controller.fetchNodes,
         ),
@@ -568,10 +606,10 @@ class WizardPageState extends State<WizardPage> {
           ),
         ),
         const SizedBox(height: Insets.md),
-        VelaPrimaryButton(
+        _stepAction(
+          context,
           label: '导入',
           icon: Icons.input_rounded,
-          expand: true,
           onPressed: () => _controller.importLinksText(_linksCtrl.text),
         ),
         _buildFetchStatus(context),
@@ -823,7 +861,8 @@ class WizardPageState extends State<WizardPage> {
                   child: ChoiceCard(
                     title: preset.label,
                     subtitle: preset.description,
-                    icon: Icons.dns_outlined,
+                    // 不配图标：三个预设都放同一枚 DNS 图标等于没有信息，
+                    // 只是多一个占位符号。
                     selected: _controller.dnsPreset == preset,
                     onTap: () => _controller.applyDnsPreset(preset),
                   ),
@@ -929,7 +968,9 @@ class WizardPageState extends State<WizardPage> {
           constraints: const BoxConstraints(maxHeight: 320),
           padding: const EdgeInsets.all(Insets.lg),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLow,
+            // 代码块用比卡片深一档的填充：surfaceContainerLow 在浅色下
+            // 几乎与白卡片同色，整块预览会「浮」不出来。
+            color: theme.colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(Radii.md),
             border: Border.all(color: theme.colorScheme.outlineVariant),
           ),

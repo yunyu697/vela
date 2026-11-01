@@ -26,7 +26,13 @@ abstract final class VelaColors {
   // ---------------------------------------------------------------- 主色
   /// 主色：黛蓝。
   static const Color ink = Color(0xFF3E5C76);
-  static const Color inkLight = Color(0xFF9BB3C8);
+
+  /// 深色模式的主色。
+  ///
+  /// 取 #7E9AB2 而不是更浅的 #9BB3C8：后者对深色表面约 8:1，做小图标没问题，
+  /// 但整块实心按钮会变成页面上最亮的东西，和「素雅」相悖。这一档对表面
+  /// 仍有约 6:1，按钮文字（onPrimary #14232E）对底色 5.4:1，都过 AA。
+  static const Color inkLight = Color(0xFF7E9AB2);
 
   /// 兼容旧引用：靛蓝即主色。
   static const Color indigo = ink;
