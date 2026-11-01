@@ -342,7 +342,15 @@ class _ProfilesPageState extends State<ProfilesPage> {
               icon: const Icon(Icons.delete_outline_rounded, size: 17),
               label: const Text('删除'),
               style: OutlinedButton.styleFrom(
+                // 边框跟文字同色：只染文字会得到「灰框红字」，像是两套样式
+                // 拼在一起。
                 foregroundColor: Theme.of(context).colorScheme.error,
+                side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .error
+                      .withValues(alpha: 0.45),
+                ),
               ),
             ),
             const SizedBox(width: Insets.sm),
@@ -799,37 +807,41 @@ class _ProfileCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: Insets.md),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  meta.useCount > 0
-                      ? '已启动 ${meta.useCount} 次'
-                          '${meta.lastUsedAt != null ? ' · ${_ago(meta.lastUsedAt!)}' : ''}'
-                      : '尚未启动过',
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          // 多选时不显示动作行：右上角的 ⋮ 菜单已经藏起来了，这里再留一颗
+          // 「启动」按钮既不一致，也容易在勾选时误触。
+          if (!selectMode) ...[
+            const SizedBox(height: Insets.md),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    meta.useCount > 0
+                        ? '已启动 ${meta.useCount} 次'
+                            '${meta.lastUsedAt != null ? ' · ${_ago(meta.lastUsedAt!)}' : ''}'
+                        : '尚未启动过',
+                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: Insets.sm),
-              if (running && !active)
-                Text(
-                  '已有内核在运行',
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                )
-              else
-                VelaPrimaryButton(
-                  label: active ? '查看' : '启动',
-                  icon: active
-                      ? Icons.chevron_right_rounded
-                      : Icons.play_arrow_rounded,
-                  tone: active ? VelaButtonTone.quiet : VelaButtonTone.primary,
-                  onPressed: onStart,
-                ),
-            ],
-          ),
+                const SizedBox(width: Insets.sm),
+                if (running && !active)
+                  Text(
+                    '已有内核在运行',
+                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                  )
+                else
+                  VelaPrimaryButton(
+                    label: active ? '查看' : '启动',
+                    icon: active
+                        ? Icons.chevron_right_rounded
+                        : Icons.play_arrow_rounded,
+                    tone: active ? VelaButtonTone.quiet : VelaButtonTone.primary,
+                    onPressed: onStart,
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

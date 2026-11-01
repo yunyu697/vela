@@ -199,6 +199,14 @@ class StatusPill extends StatelessWidget {
   final IconData? icon;
   final bool pulsing;
 
+  /// 仅测试用：把脉冲点冻在固定亮度。
+  ///
+  /// 脉冲是 1600ms 的循环动画，黄金图按「当前帧相位」出图——测试里
+  /// 挂载时机只要差一帧，那颗 6px 点的透明度就不同，截图就会偶发失败。
+  /// 冻结后黄金图仍是逐字节比对，但不再随机。
+  @visibleForTesting
+  static bool freezePulseAnimation = false;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -271,6 +279,16 @@ class _PulseDotState extends State<_PulseDot>
 
   @override
   Widget build(BuildContext context) {
+    if (StatusPill.freezePulseAnimation) {
+      return Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: widget.color.withValues(alpha: 0.8),
+        ),
+      );
+    }
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,

@@ -25,6 +25,7 @@ import 'package:vela/features/wizard/wizard_page.dart';
 import 'package:vela/ui/adaptive.dart';
 import 'package:vela/ui/app_shell.dart';
 import 'package:vela/ui/vela_theme.dart';
+import 'package:vela/ui/widgets.dart';
 
 /// 待测尺寸：覆盖手机竖屏 / 手机横屏 / 平板 / 桌面 / 超宽 / 最小安全尺寸。
 const _sizes = <String, Size>{
@@ -284,6 +285,18 @@ final _sampleConnections = <ConnectionInfo>[
   ),
 ];
 
+/// 「内核运行中」的完整快照：有状态、有实时流量、有连接。
+final _runningDebug = RunPageDebug(
+  status: const CoreStatus(CoreStatusKind.running),
+  stats: const StatsSnapshot(
+    upBps: 212 * 1024,
+    downBps: 6 * 1024 * 1024,
+    totalUp: 48 * 1024 * 1024,
+    totalDown: 1024 * 1024 * 1024,
+  ),
+  connections: _sampleConnections,
+);
+
 /// 把样例配置写入临时数据目录（模拟用户已有配置的状态）。
 Future<void> _seedSampleProfiles(Directory dir) async {
   final kv = await KvStore.open('${dir.path}/profiles.json');
@@ -296,7 +309,12 @@ void main() {
   late Directory tmp;
   late Directory emptyTmp;
 
-  setUpAll(_loadRealFont);
+  setUpAll(() async {
+    await _loadRealFont();
+    // 状态胶囊的脉冲点按帧相位渲染，不冻结会让含「运行中」的黄金图
+    // 偶发不一致（实测在整套跑时命中过一次）。
+    StatusPill.freezePulseAnimation = true;
+  });
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('vela_layout_test');
@@ -632,13 +650,13 @@ void main() {
       );
     });
 
-    // 连接表要靠真实内核跑起来才有数据，此前黄金图只能截到空状态。
-    // 这里注入一组典型连接（含超长域名、多跳出口链、UDP），
-    // 覆盖「窄屏下连接行是否挤成一团 / 域名被截断后还剩什么」。
+    // 连接表 / 流量 / 内核状态都来自 CoreManager 单例，测试里没有真实内核，
+    // 页面永远停在「已停止 + 空连接 + 三个破折号」。用 RunPageDebug 把
+    // 运行时数据钉住，才能截到运行中、异常这些状态下的排版。
     testWidgets('运行页 连接列表 桌面', (tester) async {
       await _pumpAt(
         tester,
-        pageApp(RunPage(debugConnections: _sampleConnections)),
+        pageApp(RunPage(debug: RunPageDebug(connections: _sampleConnections))),
         const Size(1440, 900),
       );
       await expectLater(
@@ -650,12 +668,57 @@ void main() {
     testWidgets('运行页 连接列表 手机', (tester) async {
       await _pumpAt(
         tester,
-        pageApp(RunPage(debugConnections: _sampleConnections)),
+        pageApp(RunPage(debug: RunPageDebug(connections: _sampleConnections))),
         const Size(390, 844),
       );
       await expectLater(
         find.byType(RunPage),
         matchesGoldenFile('goldens/run_connections_phone.png'),
+      );
+    });
+
+    testWidgets('运行页 运行中 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debug: _runningDebug)),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/run_running_desktop.png'),
+      );
+    });
+
+    testWidgets('运行页 运行中 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debug: _runningDebug)),
+        const Size(390, 844),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/run_running_phone.png'),
+      );
+    });
+
+    testWidgets('运行页 启动失败 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(
+          RunPage(
+            debug: const RunPageDebug(
+              status: CoreStatus(CoreStatusKind.error),
+              startError:
+                  '内核进程退出，code=1: parse config: proxy 3 "HK-IEPL-01": '
+                  'cipher "aes-256-gcm" is not supported by current build',
+            ),
+          ),
+        ),
+        const Size(390, 844),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/run_error_phone.png'),
       );
     });
 
@@ -680,6 +743,45 @@ void main() {
       await expectLater(
         find.byType(ProfilesPage),
         matchesGoldenFile('goldens/profiles_phone.png'),
+      );
+    });
+
+    // 多选模式的顶部是「标题 + 导出 + 删除 + 关闭」四段，390dp 下留给
+    // 标题的只剩一百来像素；此前从未截过，副标题会不会被挤没、按钮组
+    // 会不会溢出都没有证据。
+    Future<void> openSelectMode(WidgetTester tester, Size size) async {
+      await _pumpAt(
+        tester,
+        pageApp(ProfilesPage(onOpenRun: () {})),
+        size,
+      );
+      await tester.tap(find.byTooltip('多选'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+      // 选中第一张卡：副标题变成「已选中 1 项」，导出/删除从禁用转可用。
+      final firstCard = find.text('香港 IEPL · 日常使用').first;
+      await tester.tap(firstCard);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+    }
+
+    testWidgets('配置页 多选模式 手机', (tester) async {
+      await openSelectMode(tester, const Size(390, 844));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(ProfilesPage),
+        matchesGoldenFile('goldens/profiles_select_phone.png'),
+      );
+    });
+
+    testWidgets('配置页 多选模式 桌面', (tester) async {
+      await openSelectMode(tester, const Size(1440, 900));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(ProfilesPage),
+        matchesGoldenFile('goldens/profiles_select_desktop.png'),
       );
     });
 
@@ -790,6 +892,32 @@ void main() {
       await expectLater(
         find.byType(RunPage),
         matchesGoldenFile('goldens/dark_run_desktop.png'),
+      );
+    });
+
+    // 连接表在暗色下是一整片深色行 + 右侧小字，最容易出现「字和背景糊在
+    // 一起」；浅色版已经截过，暗色一直是空白。
+    testWidgets('暗色黄金图 连接列表 桌面', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debug: _runningDebug), brightness: Brightness.dark),
+        const Size(1440, 900),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/dark_run_connections_desktop.png'),
+      );
+    });
+
+    testWidgets('暗色黄金图 连接列表 手机', (tester) async {
+      await _pumpAt(
+        tester,
+        pageApp(RunPage(debug: _runningDebug), brightness: Brightness.dark),
+        const Size(390, 844),
+      );
+      await expectLater(
+        find.byType(RunPage),
+        matchesGoldenFile('goldens/dark_run_connections_phone.png'),
       );
     });
 

@@ -23,21 +23,39 @@ class RunPage extends StatefulWidget {
   const RunPage({
     super.key,
     this.initialProfileId,
-    @visibleForTesting this.debugConnections,
+    @visibleForTesting this.debug,
   });
 
   /// 从向导「完成」跳转时预选的 Profile。
   final String? initialProfileId;
 
-  /// 仅测试用：预置连接表。
-  ///
-  /// 连接数据要靠真实内核跑起来才有，黄金图否则只能截到空状态，
-  /// 「窄屏下连接行的密度与截断」这类排版问题就永远没人看得见。
+  /// 仅测试用：钉住运行时数据。
   @visibleForTesting
-  final List<ConnectionInfo>? debugConnections;
+  final RunPageDebug? debug;
 
   @override
   State<RunPage> createState() => _RunPageState();
+}
+
+/// 仅测试用：把「内核真跑起来才有」的运行时数据钉成固定值。
+///
+/// 内核状态、流量统计、连接表都来自 [CoreManager] 单例，测试里没有真实
+/// 内核，页面永远停在「已停止 + 空连接 + 三个破折号」。没有这个入口，
+/// 运行中 / 异常状态下的排版（状态胶囊、停止按钮、错误条）就永远没有
+/// 截图证据。
+@visibleForTesting
+class RunPageDebug {
+  const RunPageDebug({
+    this.connections = const [],
+    this.status = const CoreStatus(CoreStatusKind.stopped),
+    this.stats,
+    this.startError,
+  });
+
+  final List<ConnectionInfo> connections;
+  final CoreStatus status;
+  final StatsSnapshot? stats;
+  final String? startError;
 }
 
 class _RunPageState extends State<RunPage> {
@@ -53,11 +71,28 @@ class _RunPageState extends State<RunPage> {
 
   CoreManager get _manager => CoreManager.instance;
 
+  // ---- 运行时数据的读取口：debug 优先，否则读真实内核 ----
+
+  CoreStatus get _status => widget.debug?.status ?? _manager.status;
+
+  /// 与 [CoreManager.isActive] 同一判据；debug 未设时两者等价。
+  bool get _isActive =>
+      _status.kind == CoreStatusKind.running ||
+      _status.kind == CoreStatusKind.starting;
+
+  StatsSnapshot? get _statsView => widget.debug?.stats ?? _latestStats;
+
+  String? get _errorView => widget.debug?.startError ?? _startError;
+
+  Profile? get _activeProfileView => widget.debug != null
+      ? (_isActive ? _selectedProfile : null)
+      : _manager.activeProfile;
+
   @override
   void initState() {
     super.initState();
     _selectedId = widget.initialProfileId;
-    _connections = widget.debugConnections ?? const [];
+    _connections = widget.debug?.connections ?? const [];
     _manager.addListener(_onCoreChanged);
     _repo.addListener(_onRepoChanged);
     _repo.init().then((_) => _load());
@@ -105,6 +140,13 @@ class _RunPageState extends State<RunPage> {
     });
   }
 
+  /// 异常转文案：剥掉类名前缀。
+  ///
+  /// `CoreStartException.toString()` 会带上类名，界面上直接显示
+  /// 「CoreStartException: 内核进程退出…」对用户没有意义。
+  static String _describeError(Object e) =>
+      e is CoreStartException ? e.message : e.toString();
+
   Future<void> _start() async {
     final profile = _profiles.where((p) => p.id == _selectedId).firstOrNull;
     if (profile == null) return;
@@ -114,7 +156,7 @@ class _RunPageState extends State<RunPage> {
       await _repo.markUsed(profile.id);
       _startAutoRefresh();
     } catch (e) {
-      if (mounted) setState(() => _startError = e.toString());
+      if (mounted) setState(() => _startError = _describeError(e));
     }
   }
 
@@ -123,7 +165,7 @@ class _RunPageState extends State<RunPage> {
     try {
       await _manager.stop();
     } catch (e) {
-      if (mounted) setState(() => _startError = e.toString());
+      if (mounted) setState(() => _startError = _describeError(e));
     }
   }
 
@@ -144,7 +186,9 @@ class _RunPageState extends State<RunPage> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _startError = '切换内核失败: $e');
+      if (mounted) {
+        setState(() => _startError = '切换内核失败：${_describeError(e)}');
+      }
     }
   }
 
@@ -216,8 +260,8 @@ class _RunPageState extends State<RunPage> {
           padding: padding,
           child: PageHeading(
             title: '运行',
-            subtitle: _manager.activeProfile != null
-                ? '当前：${_manager.activeProfile!.name}'
+            subtitle: _activeProfileView != null
+                ? '当前：${_activeProfileView!.name}'
                 : '选择配置并启动内核',
             trailing: _buildStatusPill(context),
           ),
@@ -271,7 +315,7 @@ class _RunPageState extends State<RunPage> {
   }
 
   Widget _buildStatusPill(BuildContext context) {
-    final status = _manager.status;
+    final status = _status;
     final brightness = Theme.of(context).brightness;
     final (color, label) = switch (status.kind) {
       CoreStatusKind.running => (VelaColors.emerald, '运行中'),
@@ -291,7 +335,7 @@ class _RunPageState extends State<RunPage> {
 
   Widget _buildConsole(BuildContext context, AdaptiveScope scope) {
     final theme = Theme.of(context);
-    final active = _manager.isActive;
+    final active = _isActive;
     final selected = _selectedProfile;
 
     return VelaCard(
@@ -331,16 +375,13 @@ class _RunPageState extends State<RunPage> {
           if (active)
             SizedBox(
               width: double.infinity,
+              // 用中性的描边按钮，不套红色：旁边状态胶囊写着「运行中」是
+              // 绿的，再来一颗红按钮会让人以为出事了。「停止」是正常操作，
+              // 红色留给真正的错误。
               child: OutlinedButton.icon(
                 onPressed: _stop,
                 icon: const Icon(Icons.stop_rounded, size: 18),
                 label: const Text('停止'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                  side: BorderSide(
-                    color: theme.colorScheme.error.withValues(alpha: 0.4),
-                  ),
-                ),
               ),
             )
           else
@@ -350,11 +391,14 @@ class _RunPageState extends State<RunPage> {
               expand: true,
               onPressed: selected == null ? null : _start,
             ),
-          if (_startError != null) ...[
+          if (_errorView != null) ...[
             const SizedBox(height: Insets.md),
             Container(
               padding: const EdgeInsets.all(Insets.md),
               decoration: BoxDecoration(
+                // 极浅的红底：只有描边时，红字直接压在白色卡片上，
+                // 更像一段普通文字而不是「这里出错了」。
+                color: theme.colorScheme.error.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(Radii.md),
                 border: Border.all(
                   color: theme.colorScheme.error.withValues(alpha: 0.35),
@@ -363,12 +407,15 @@ class _RunPageState extends State<RunPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.error_outline_rounded,
-                      size: 16, color: theme.colorScheme.error),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(Icons.error_outline_rounded,
+                        size: 16, color: theme.colorScheme.error),
+                  ),
                   const SizedBox(width: Insets.sm),
                   Expanded(
-                    child: Text(
-                      _startError!,
+                    child: SelectableText(
+                      _errorView!,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.colorScheme.error),
                     ),
@@ -384,7 +431,7 @@ class _RunPageState extends State<RunPage> {
 
   Widget _buildCoreSwitch(BuildContext context, bool active) {
     final theme = Theme.of(context);
-    final current = _manager.activeProfile?.coreKind ??
+    final current = _activeProfileView?.coreKind ??
         _selectedProfile?.coreKind ??
         CoreKind.mihomo;
 
@@ -466,7 +513,7 @@ class _RunPageState extends State<RunPage> {
 
   Widget _buildDashboard(BuildContext context, AdaptiveScope scope) {
     final theme = Theme.of(context);
-    final stats = _latestStats;
+    final stats = _statsView;
 
     final statTiles = [
       StatTile(
@@ -531,7 +578,7 @@ class _RunPageState extends State<RunPage> {
                 style: theme.textTheme.titleSmall,
               ),
             ),
-            if (_manager.isActive)
+            if (_isActive)
               StatusPill(
                 label: '实时刷新',
                 color: VelaColors.resolve(VelaColors.emerald, theme.brightness),
