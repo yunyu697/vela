@@ -664,20 +664,35 @@ class WizardPageState extends State<WizardPage> {
     );
   }
 
-  Widget _infoNote(BuildContext context, IconData icon, String text) {
+  Widget _infoNote(BuildContext context, IconData icon, String text,
+      {Color? tone}) {
     final theme = Theme.of(context);
+    final color = tone ?? theme.colorScheme.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.all(Insets.md),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: tone?.withValues(alpha: 0.06),
+        border: Border.all(
+          color: tone?.withValues(alpha: 0.35) ??
+              theme.colorScheme.outlineVariant,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 17, color: color),
+          ),
           const SizedBox(width: Insets.sm + 2),
-          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tone == null ? null : color),
+            ),
+          ),
         ],
       ),
     );
@@ -973,49 +988,68 @@ class WizardPageState extends State<WizardPage> {
   Widget _buildReviewStep(BuildContext context) {
     final result = _controller.build();
     final theme = Theme.of(context);
-    if (!result.success) {
-      return _stepCard(
-        context,
-        _infoNote(
-          context,
-          Icons.block_rounded,
-          '存在阻断级问题，请在右侧「检查结果」中修复后继续。',
-        ),
+    final ok = result.success;
+
+    // 摘要卡两种状态都出。此前被阻断时中心区只剩一句红字，桌面端
+    // 四分之三的屏幕是空白，用户也看不到自己到底配了什么——而修问题
+    // 恰恰需要这份上下文。
+    final summary = _stepCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InfoRow(label: '配置名', value: result.profile.name),
+          InfoRow(
+            label: '内核',
+            value: result.profile.coreKind == CoreKind.singbox
+                ? 'sing-box'
+                : 'mihomo',
+          ),
+          InfoRow(label: '节点', value: '${result.profile.nodes.length}'),
+          InfoRow(label: '分组', value: '${result.profile.groups.length}'),
+          InfoRow(label: '规则', value: '${result.profile.rules.length}'),
+          InfoRow(
+            label: 'DNS',
+            value: result.profile.dns.mode.label,
+            monospace: true,
+          ),
+          InfoRow(
+            label: '入站',
+            value: result.profile.inbound.mode.label,
+            monospace: true,
+          ),
+        ],
+      ),
+      hint: ok
+          ? '以下是即将生成的配置，确认无误后点击「完成」保存。'
+          : '以上是当前草稿的摘要。修复问题后即可生成配置。',
+    );
+
+    if (!ok) {
+      final errors =
+          result.issues.where((i) => i.severity == LintSeverity.error).length;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 不再套 _stepCard：提示条自带描边和浅底，外面再包一层白卡
+          // 就成了双层边框，看着像两个框叠在一起。
+          _infoNote(
+            context,
+            Icons.block_rounded,
+            '存在 $errors 个阻断级问题，请在'
+                '${AdaptiveScope.of(context).size.isExpanded ? '右侧' : '下方'}'
+                '「检查结果」中修复后继续。',
+            tone: theme.colorScheme.error,
+          ),
+          const SizedBox(height: Insets.lg),
+          summary,
+        ],
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _stepCard(
-          context,
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InfoRow(label: '配置名', value: result.profile.name),
-              InfoRow(
-                label: '内核',
-                value: result.profile.coreKind == CoreKind.singbox
-                    ? 'sing-box'
-                    : 'mihomo',
-              ),
-              InfoRow(label: '节点', value: '${result.profile.nodes.length}'),
-              InfoRow(label: '分组', value: '${result.profile.groups.length}'),
-              InfoRow(label: '规则', value: '${result.profile.rules.length}'),
-              InfoRow(
-                label: 'DNS',
-                value: result.profile.dns.mode.label,
-                monospace: true,
-              ),
-              InfoRow(
-                label: '入站',
-                value: result.profile.inbound.mode.label,
-                monospace: true,
-              ),
-            ],
-          ),
-          hint: '以下是即将生成的配置，确认无误后点击「完成」保存。',
-        ),
-        const SizedBox(height: Insets.lg),
+        summary,
         Text('配置预览', style: theme.textTheme.titleSmall),
         const SizedBox(height: Insets.sm),
         Container(
@@ -1047,9 +1081,14 @@ class WizardPageState extends State<WizardPage> {
   Widget _buildLintSidePanel(BuildContext context) {
     final theme = Theme.of(context);
     final issues = _controller.currentLint;
+    // 有阻断级问题就该用错误色：此前只要「有问题」一律给琥珀色警告图标，
+    // 明明配不出配置，面板却只是「提醒」的语气。
+    final hasError = issues.any((i) => i.severity == LintSeverity.error);
     final accent = issues.isEmpty
         ? VelaColors.resolve(VelaColors.emerald, theme.brightness)
-        : VelaColors.resolve(VelaColors.amber, theme.brightness);
+        : hasError
+            ? theme.colorScheme.error
+            : VelaColors.resolve(VelaColors.amber, theme.brightness);
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -1065,7 +1104,11 @@ class WizardPageState extends State<WizardPage> {
             child: Row(
               children: [
                 Icon(
-                  issues.isEmpty ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
+                  issues.isEmpty
+                      ? Icons.check_circle_outline_rounded
+                      : hasError
+                          ? Icons.error_outline_rounded
+                          : Icons.warning_amber_rounded,
                   size: 17,
                   color: accent,
                 ),
@@ -1120,12 +1163,36 @@ class WizardPageState extends State<WizardPage> {
 
   /// 窄屏/中屏的 Lint 面板（内嵌在内容下方）。
   Widget _buildLintInline(BuildContext context) {
+    final theme = Theme.of(context);
     final issues = _controller.currentLint;
     if (issues.isEmpty) return const SizedBox.shrink();
+    final hasError = issues.any((i) => i.severity == LintSeverity.error);
+    final accent = hasError
+        ? theme.colorScheme.error
+        : VelaColors.resolve(VelaColors.amber, theme.brightness);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: Insets.lg),
+        // 窄屏没有侧边栏，这几条红框直接漂在内容下面，不标个标题
+        // 用户不知道它们是「检查结果」。
+        Row(
+          children: [
+            Icon(
+              hasError
+                  ? Icons.error_outline_rounded
+                  : Icons.warning_amber_rounded,
+              size: 16,
+              color: accent,
+            ),
+            const SizedBox(width: Insets.sm - 2),
+            Expanded(
+              child: Text('检查结果', style: theme.textTheme.titleSmall),
+            ),
+            StatusPill(label: '${issues.length}', color: accent),
+          ],
+        ),
+        const SizedBox(height: Insets.sm + 2),
         for (final issue in issues)
           Padding(
             padding: const EdgeInsets.only(bottom: Insets.sm),
@@ -1181,7 +1248,11 @@ class WizardPageState extends State<WizardPage> {
             VelaPrimaryButton(
               label: '完成并保存',
               icon: Icons.check_rounded,
-              onPressed: () => _finish(context),
+              // 有阻断级问题时禁用：主区域已经写明原因，按钮再亮着只会
+              // 让用户点一次、吃一句「生成被阻断」。
+              onPressed: _controller.hasBlockingIssues
+                  ? null
+                  : () => _finish(context),
             ),
         ],
       ),

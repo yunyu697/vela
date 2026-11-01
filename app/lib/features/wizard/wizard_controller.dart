@@ -136,6 +136,11 @@ class WizardController extends ChangeNotifier {
     return issues;
   }
 
+  /// 是否存在阻断级问题。有则「完成并保存」应禁用——按钮亮着却点了才弹
+  /// 一句「生成被阻断」，等于让用户白点一次。
+  bool get hasBlockingIssues =>
+      currentLint.any((i) => i.severity == LintSeverity.error);
+
   bool get canAdvance {
     switch (step) {
       case WizardStep.source:

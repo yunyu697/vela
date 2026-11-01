@@ -948,6 +948,9 @@ class _ProfileMenu extends StatelessWidget {
             title: Text('导出'),
           ),
         ),
+        // 破坏性操作与上面四项之间隔一条线：只靠红色区分，在
+        // 「导出」正下方紧挨着「删除」时仍容易点错。
+        const PopupMenuDivider(height: 9),
         PopupMenuItem(
           value: 'delete',
           child: ListTile(

@@ -160,7 +160,14 @@ ColorScheme _darkScheme() {
     surfaceContainerHigh: Color(0xFF282A2E),
     surfaceContainerHighest: Color(0xFF313338),
     onSurfaceVariant: Color(0xFF9EA1A6),
-    outline: Color(0xFF4A4C51),
+    // 交互元素的边界色。#4A4C51 时对卡片只有 1.8~2.0:1——描边按钮
+    // （停止 / 导出 / 删除）在暗色下几乎看不出边界。这里取能让四种暗色
+    // 表面都过 3:1 的最低值（最差的 surfaceContainerHigh 上 3.21:1），
+    // 再亮就会盖过次要文字。
+    //
+    // 注意：卡片/分隔线用的是 outlineVariant（#2E3034），仍是发丝线；
+    // 这条只管「需要被看见」的边界。
+    outline: Color(0xFF74777E),
     outlineVariant: Color(0xFF2E3034),
     shadow: Color(0x66000000),
     scrim: Color(0x99000000),

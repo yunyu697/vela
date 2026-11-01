@@ -634,6 +634,31 @@ void main() {
       );
     });
 
+    // 检查面板此前只截过「未发现问题」。没有节点时是阻断态：右侧面板要列
+    // 出 error 条目、主区域要显示「存在阻断级问题」，这两块的排版从没验证。
+    testWidgets('向导 检查步骤 阻断态 桌面', (tester) async {
+      await wizardAt(tester, WizardStep.review, const Size(1440, 900));
+      // 阻断时摘要卡仍要在：曾经主区域只剩一句红字，桌面端大半屏空白，
+      // 用户看不到自己到底配了什么，而修问题恰恰需要这份上下文。
+      expect(find.text('配置名'), findsOneWidget, reason: '阻断态丢了配置摘要');
+      expect(find.text('入站'), findsOneWidget);
+      // 但既然生成被拦下，就没有配置可预览。
+      expect(find.text('配置预览'), findsNothing, reason: '阻断态不该出现配置预览');
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_review_blocked_desktop.png'),
+      );
+    });
+
+    testWidgets('向导 检查步骤 阻断态 手机', (tester) async {
+      await wizardAt(tester, WizardStep.review, const Size(390, 844));
+      expect(find.text('配置名'), findsOneWidget, reason: '阻断态丢了配置摘要');
+      await expectLater(
+        find.byType(WizardPage),
+        matchesGoldenFile('goldens/wizard_review_blocked_phone.png'),
+      );
+    });
+
     testWidgets('运行页 桌面', (tester) async {
       await _pumpAt(tester, pageApp(const RunPage()), const Size(1440, 900));
       await expectLater(
@@ -782,6 +807,40 @@ void main() {
       await expectLater(
         find.byType(ProfilesPage),
         matchesGoldenFile('goldens/profiles_select_desktop.png'),
+      );
+    });
+
+    // ⋮ 菜单是 PopupMenuButton，弹层挂在 Overlay 上，截图要截整棵
+    // MaterialApp 而不是 ProfilesPage——否则只拍到卡片、菜单是空的。
+    // 窄屏下弹层贴着屏幕右边缘，最容易出「被裁掉一半」的问题。
+    Future<void> openCardMenu(WidgetTester tester, Size size) async {
+      await _pumpAt(
+        tester,
+        pageApp(ProfilesPage(onOpenRun: () {})),
+        size,
+      );
+      await tester.tap(find.byTooltip('更多操作').first);
+      await tester.pump();
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+    }
+
+    testWidgets('配置页 卡片菜单 手机', (tester) async {
+      await openCardMenu(tester, const Size(390, 844));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/profiles_menu_phone.png'),
+      );
+    });
+
+    testWidgets('配置页 卡片菜单 桌面', (tester) async {
+      await openCardMenu(tester, const Size(1440, 900));
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/profiles_menu_desktop.png'),
       );
     });
 

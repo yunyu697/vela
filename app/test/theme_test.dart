@@ -119,6 +119,23 @@ void main() {
       );
     });
 
+    // WCAG 1.4.11（非文本对比度）：交互元素的边界要 ≥ 3:1，否则用户
+    // 看不出这里有个按钮。描边按钮（停止 / 导出 / 删除）的边界就是
+    // outline 这一条线。
+    test('暗色描边对各级卡片表面 ≥ 3:1', () {
+      for (final surface in [
+        dark.surfaceContainerLow,
+        dark.surfaceContainer,
+        dark.surfaceContainerHigh,
+      ]) {
+        expect(
+          _contrast(dark.outline, surface),
+          greaterThan(3.0),
+          reason: '描边按钮在 $surface 上会看不出边界',
+        );
+      }
+    });
+
     test('表面层级单调递增（低 → 高越来越亮）', () {
       final layers = [
         dark.surfaceContainerLowest,
